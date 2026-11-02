@@ -573,3 +573,34 @@ a{color:inherit}
 .dev .t{flex:1;min-width:0}
 .dev b{display:block}
 .dev small{color:var(--ink-2)}
+
+/* cobro: 5 formas, mixto, cliente */
+.pay-m.five{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.pay-m.five button{padding:10px 2px;font-size:.78rem}
+.mix{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-radius:14px;background:var(--sunk);border:1px solid var(--line)}
+.mix-r{display:grid;grid-template-columns:110px minmax(0,1fr) auto;gap:8px;align-items:center;font-weight:600;font-size:.88rem}
+.mix-r input{height:40px}
+.mix-r.tot-line{grid-template-columns:1fr auto;padding-top:6px;border-top:1px dashed var(--line-2)}
+.cli-sel{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:14px;border:1.5px solid var(--accent);background:var(--accent-soft)}
+.cli-sel .t{flex:1;min-width:0}
+.cli-sel b{display:block}
+.cli-sel small{color:var(--ink-2);font-size:.8rem}
+.err{color:var(--bad);font-weight:600;font-size:.88rem;margin:0}
+.sup input{letter-spacing:.3em}
+.li.op{width:100%;border:0;background:transparent;text-align:left;cursor:pointer;border-radius:12px;padding:12px 8px;border-top:1px solid var(--line)}
+.li.op:first-child{border-top:0}
+.li.op:hover{background:var(--sunk)}
+.sugg button:disabled{opacity:.6}
+@media (max-width:420px){.mix-r{grid-template-columns:90px minmax(0,1fr) auto}}
+
+/* importar */
+.drop{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:56px 20px;border:2px dashed var(--line-2);border-radius:20px;background:var(--surface);cursor:pointer;transition:border-color .15s,background .15s}
+.drop:hover,.drop.on{border-color:var(--accent);background:var(--accent-soft)}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.drop .muted{max-width:52ch;font-size:.88rem}
+
+/* panel Ordanza */
+.ord{min-height:100%;background:var(--bg)}
+.ord-top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;align-items:center;justify-content:space-between;gap:10px;height:60px;background:var(--rail);color:var(--rail-hi);padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+.ord-top .btn{background:rgb(255 255 255/.08);border-color:rgb(255 255 255/.16);color:var(--rail-hi);box-shadow:none}
+.lic-banner{display:flex;align-items:center;gap:10px;background:var(--warn-soft);color:var(--warn);padding:9px 20px;font-size:.86rem;font-weight:600}

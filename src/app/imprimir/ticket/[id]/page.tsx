@@ -11,7 +11,7 @@ export default async function Ticket({ params, searchParams }: { params: Promise
   const s = await requirePage();
   const { id } = await params;
   const { auto } = await searchParams;
-  const v = await prisma.venta.findFirst({ where: { id, tenantId: s.tid }, include: { items: true, caja: true } });
+  const v = await prisma.venta.findFirst({ where: { id, tenantId: s.tid }, include: { items: true, caja: true, pagos: true, devoluciones: { select: { total: true } } } });
   if (!v) notFound();
   const t = s.tenant;
   const w = t.anchoTicket === 80 ? 72 : 48;
@@ -26,6 +26,7 @@ export default async function Ticket({ params, searchParams }: { params: Promise
         <div>{fecha}</div>
         <div className="r"><span>{v.caja.nombre}</span><span>Atendió: {v.usuarioNombre.split(" ")[0]}</span></div>
         {v.cliente && <div>Cliente: {v.cliente}</div>}
+        {v.autorizadoPor && <div>Descuento autorizado por {v.autorizadoPor}</div>}
         <hr />
         {v.items.map((i) => (
           <div key={i.id}>
@@ -38,8 +39,12 @@ export default async function Ticket({ params, searchParams }: { params: Promise
         {n(v.descuento) > 0 && <div className="r"><span>Descuento</span><span>-{money(v.descuento)}</span></div>}
         <div className="r"><span>IVA incluido</span><span>{money(v.iva)}</span></div>
         <div className="r big"><span>TOTAL</span><span>{money(v.total)}</span></div>
-        <div className="r"><span>{METODOS[v.metodo]}</span><span>{money(v.recibido)}</span></div>
-        {v.metodo === "EFECTIVO" && <div className="r"><span>Cambio</span><span>{money(v.cambio)}</span></div>}
+        {v.pagos.map((p) => (
+          <div className="r" key={p.id}><span>{METODOS[p.metodo]}</span><span>{money(p.metodo === "EFECTIVO" ? n(p.monto) + n(v.cambio) : p.monto)}</span></div>
+        ))}
+        {v.pagos.some((p) => p.metodo === "EFECTIVO") && <div className="r"><span>Cambio</span><span>{money(v.cambio)}</span></div>}
+        {v.pagos.some((p) => p.metodo === "CREDITO") && <div className="c" style={{ marginTop: 10 }}>Firma de conformidad: ______________</div>}
+        {v.devoluciones.length > 0 && <div className="r"><span>Devuelto</span><span>-{money(v.devoluciones.reduce((a, d) => a + n(d.total), 0))}</span></div>}
         {v.estado === "CANCELADA" && <><hr /><div className="c big">*** CANCELADA ***</div></>}
         <hr />
         <div className="c">{t.piePagina}</div>

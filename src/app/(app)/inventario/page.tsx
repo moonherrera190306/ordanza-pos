@@ -9,7 +9,7 @@ export const metadata = { title: "Inventario" };
 export default async function Page({ searchParams }: { searchParams: Promise<{ p?: string; tipo?: string }> }) {
   const s = await requirePage(["ADMIN", "ALMACEN"]);
   const sp = await searchParams;
-  const tipo = ["ENTRADA", "SALIDA", "AJUSTE", "VENTA", "CANCELACION", "INICIAL"].includes(sp.tipo ?? "") ? sp.tipo : undefined;
+  const tipo = ["ENTRADA", "SALIDA", "AJUSTE", "VENTA", "CANCELACION", "INICIAL", "DEVOLUCION", "COMPRA"].includes(sp.tipo ?? "") ? sp.tipo : undefined;
   const [productos, movs] = await Promise.all([
     productosDTO(s.tid),
     prisma.movimiento.findMany({

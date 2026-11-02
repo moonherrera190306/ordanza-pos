@@ -86,3 +86,16 @@ export async function requireAction(roles?: Rol[]) {
   if (roles && !roles.includes(s.user.rol)) throw new AuthError("No tienes permiso para esta acción.");
   return s;
 }
+
+/** Personal de Ordanza: correos en SUPERADMIN_EMAILS (separados por coma). */
+export function esSuperAdmin(s: Session | null) {
+  const list = (process.env.SUPERADMIN_EMAILS || "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+  return !!s?.user.email && list.includes(s.user.email.toLowerCase());
+}
+
+export async function requireSuperAdmin() {
+  const s = await getSession();
+  if (!s) redirect("/login");
+  if (!esSuperAdmin(s)) redirect("/inicio");
+  return s;
+}

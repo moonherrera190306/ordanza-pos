@@ -18,6 +18,9 @@ const NegocioIn = z.object({
   anchoTicket: z.union([z.literal(58), z.literal(80)]),
   ivaPct: z.number().min(0).max(100),
   permitirSinStock: z.boolean(),
+  autorizarDescuento: z.boolean(),
+  autorizarRetiro: z.boolean(),
+  autorizarDevolucion: z.boolean(),
 });
 
 export async function guardarNegocio(input: z.input<typeof NegocioIn>) {
@@ -44,6 +47,11 @@ export async function guardarCaja(input: z.input<typeof CajaIn>) {
   return run(async () => {
     const s = await requireAction(["ADMIN"]);
     const d = CajaIn.parse(input);
+    if (d.activa) {
+      const activas = await prisma.caja.count({ where: { tenantId: s.tid, activa: true, ...(d.id ? { id: { not: d.id } } : {}) } });
+      if (activas >= s.tenant.maxCajas)
+        throw new UserError(`Tu plan incluye ${s.tenant.maxCajas} ${s.tenant.maxCajas === 1 ? "caja" : "cajas"} activas. Desactiva una o comunícate con Ordanza para agregar más.`);
+    }
     if (d.id) {
       if (!d.activa) {
         const abierta = await prisma.turno.findFirst({ where: { tenantId: s.tid, cajaId: d.id, estado: "ABIERTO" } });

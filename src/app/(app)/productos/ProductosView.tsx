@@ -46,6 +46,7 @@ export function ProductosView({ productos, categorias, rol, initialStock, openNe
         <div><p className="eyebrow">Catálogo</p><h1>Productos</h1></div>
         <div className="acts">
           {isAdmin && <a className="btn" href="/api/export/productos"><Icon name="download" />Exportar CSV</a>}
+          {canEdit && <a className="btn" href="/productos/importar"><Icon name="upload" />Importar Excel</a>}
           {canEdit && <button className="btn primary" onClick={() => { setPreset(undefined); setEdit("new"); }}><Icon name="plus" />Nuevo producto</button>}
         </div>
       </div>
@@ -103,7 +104,7 @@ export function ProductosView({ productos, categorias, rol, initialStock, openNe
       ) : (
         <div className="panel">
           <Empty icon="box" title={productos.length ? "Ningún producto coincide con el filtro" : "Aún no tienes productos"}>
-            {!productos.length && canEdit && <span>Da clic en “Nuevo producto” o escanea un código para registrarlo.</span>}
+            {!productos.length && canEdit && <span>Da clic en “Nuevo producto”, escanea un código o <a className="link" href="/productos/importar">importa tu Excel</a>.</span>}
           </Empty>
         </div>
       )}

@@ -15,10 +15,11 @@ type Props = {
   negocio: string;
   caja: { nombre: string; abierta: boolean } | null;
   lowCount: number;
+  aviso?: string | null;
   children: React.ReactNode;
 };
 
-export function Shell({ user, negocio, caja, lowCount, children }: Props) {
+export function Shell({ user, negocio, caja, lowCount, aviso, children }: Props) {
   const path = usePathname();
   const router = useRouter();
   const [palette, setPalette] = useState(false);
@@ -75,6 +76,7 @@ export function Shell({ user, negocio, caja, lowCount, children }: Props) {
       </aside>
 
       <main>
+        {aviso && <div className="lic-banner"><Icon name="alert" />{aviso}</div>}
         <header className="top">
           <div className="m-brand"><Mark /><b style={{ fontFamily: "var(--f-display)", color: "var(--ink)" }}>{negocio}</b></div>
           <button className="cmdk" type="button" onClick={() => setPalette(true)} aria-label="Buscar">

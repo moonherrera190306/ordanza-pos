@@ -70,6 +70,11 @@ async function Resumen({ tid, tz, desde, hasta, rango }: { tid: string; tz: stri
   });
   const ok = vs.filter((v) => v.estado === "PAGADA");
   const canc = vs.filter((v) => v.estado === "CANCELADA");
+  const [pagos, devs] = await Promise.all([
+    prisma.ventaPago.groupBy({ by: ["metodo"], where: { venta: { tenantId: tid, estado: "PAGADA", creado: rango } }, _sum: { monto: true }, _count: true }),
+    prisma.devolucion.aggregate({ where: { tenantId: tid, creado: rango }, _sum: { total: true }, _count: true }),
+  ]);
+  const devTotal = n(devs._sum.total);
   const tot = ok.reduce((a, v) => a + n(v.total), 0);
   const cost = ok.reduce((a, v) => a + n(v.costo), 0);
   const nd = Math.round((Date.parse(hasta) - Date.parse(desde)) / 864e5) + 1;
@@ -105,11 +110,11 @@ async function Resumen({ tid, tz, desde, hasta, rango }: { tid: string; tz: stri
         <div className="kpi"><span className="lbl">Ventas</span><strong className="val">{money(tot)}</strong><span className="sub">{ok.length} {ok.length === 1 ? "ticket" : "tickets"}</span></div>
         <div className="kpi"><span className="lbl">Utilidad bruta</span><strong className="val">{money(tot - cost)}</strong><span className="sub">{tot ? Math.round(((tot - cost) / tot) * 100) : 0}% de margen</span></div>
         <div className="kpi"><span className="lbl">Ticket promedio</span><strong className="val">{money(ok.length ? tot / ok.length : 0)}</strong><span className="sub">&nbsp;</span></div>
-        <div className="kpi"><span className="lbl">Cancelaciones</span><strong className="val">{canc.length}</strong><span className="sub">{money(canc.reduce((a, v) => a + n(v.total), 0))}</span></div>
+        <div className="kpi"><span className="lbl">Devoluciones y cancelaciones</span><strong className="val">{money(devTotal + canc.reduce((a, v) => a + n(v.total), 0))}</strong><span className="sub">{devs._count} devoluciones · {canc.length} cancelaciones</span></div>
       </div>
       <section className="panel"><h3>Ventas por {nd <= 45 ? "día" : "mes"}</h3><BarChart data={serie} /></section>
       <div className="grid3">
-        <section className="panel"><h3>Por método de pago</h3><HBars rows={grp((v) => METODOS[v.metodo])} /></section>
+        <section className="panel"><h3>Por método de pago</h3><HBars rows={pagos.map((p) => ({ l: METODOS[p.metodo], v: n(p._sum.monto), s: `${p._count} ${p._count === 1 ? "pago" : "pagos"}` })).sort((a, b) => b.v - a.v)} /></section>
         <section className="panel"><h3>Por caja</h3><HBars rows={grp((v) => v.caja.nombre)} /></section>
         <section className="panel"><h3>Por usuario</h3><HBars rows={grp((v) => v.usuarioNombre)} /></section>
       </div>
@@ -147,24 +152,26 @@ async function Ventas({ tid, tz, rango }: { tid: string; tz: string; rango: R })
 }
 
 async function Productos({ tid, rango }: { tid: string; rango: R }) {
-  const [g, prods, sm] = await Promise.all([
-    prisma.ventaItem.groupBy({
-      by: ["productoId"],
+  const [items, prods, sm] = await Promise.all([
+    prisma.ventaItem.findMany({
       where: { venta: { tenantId: tid, estado: "PAGADA", creado: rango } },
-      _sum: { cantidad: true, importe: true },
+      select: { productoId: true, cantidad: true, devuelto: true, importe: true, costo: true },
     }),
     prisma.producto.findMany({ where: { tenantId: tid }, select: { id: true, nombre: true, costo: true, activo: true, esServicio: true, unidad: true } }),
     stockMap(tid),
   ]);
-  const costos = await prisma.ventaItem.findMany({
-    where: { venta: { tenantId: tid, estado: "PAGADA", creado: rango } },
-    select: { productoId: true, costo: true, cantidad: true },
-  });
-  const costoPor = new Map<string, number>();
-  costos.forEach((c) => costoPor.set(c.productoId, (costoPor.get(c.productoId) ?? 0) + n(c.costo) * n(c.cantidad)));
+  // Neto de devoluciones: lo devuelto no cuenta como vendido.
+  const agg = new Map<string, { c: number; v: number; k: number }>();
+  for (const i of items) {
+    const cant = n(i.cantidad), net = cant - n(i.devuelto);
+    if (net <= 0) continue;
+    const x = agg.get(i.productoId) ?? { c: 0, v: 0, k: 0 };
+    x.c += net; x.v += (n(i.importe) * net) / cant; x.k += n(i.costo) * net;
+    agg.set(i.productoId, x);
+  }
+  const costoPor = new Map([...agg].map(([id, x]) => [id, x.k]));
   const pm = new Map(prods.map((p) => [p.id, p]));
-  const rows = g.map((x) => ({ id: x.productoId, nombre: pm.get(x.productoId)?.nombre ?? "—", c: n(x._sum.cantidad), v: n(x._sum.importe) }))
-    .sort((a, b) => b.v - a.v);
+  const rows = [...agg].map(([id, x]) => ({ id, nombre: pm.get(id)?.nombre ?? "—", c: x.c, v: r2(x.v) })).sort((a, b) => b.v - a.v);
   const vendidos = new Set(rows.map((r) => r.id));
   const quietos = prods.filter((p) => p.activo && !p.esServicio && !vendidos.has(p.id) && (sm.get(p.id) ?? 0) > 0)
     .map((p) => ({ ...p, stock: sm.get(p.id) ?? 0 }))

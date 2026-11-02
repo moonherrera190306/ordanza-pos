@@ -15,6 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       negocio={s.tenant.nombre}
       caja={s.caja ? { nombre: s.caja.nombre, abierta: !!turno } : null}
       lowCount={low}
+      aviso={s.user.rol === "ADMIN" && s.tenant.pagadoHasta && s.tenant.pagadoHasta < new Date() ? `Tu licencia venció el ${s.tenant.pagadoHasta.toLocaleDateString("es-MX", { day: "numeric", month: "long" })}. Comunícate con Ordanza para renovarla y evitar la suspensión.` : null}
     >
       {children}
     </Shell>

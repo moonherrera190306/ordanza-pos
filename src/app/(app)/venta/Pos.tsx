@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { cobrar, cerrarTurno, resumenTurno, type ResumenTurno, type VentaHecha } from "@/app/actions/venta";
+import { cobrar, cerrarTurno, movimientoCaja, resumenTurno, verificarSupervisor, type VentaHecha } from "@/app/actions/venta";
+import { crearClienteRapido } from "@/app/actions/clientes";
+import type { ResumenTurno } from "@/lib/corte";
+import type { ClienteDTO } from "@/lib/clientes";
+import { DevolucionModal } from "@/components/Devolucion";
+import { PinSupervisor } from "@/components/Supervisor";
 import { Icon } from "@/components/Icon";
 import { Modal, ModalHead, toast } from "@/components/ui";
 import { CameraScanner, beep, useScanner } from "@/components/scanner";
@@ -10,14 +15,15 @@ import { firstName, hue, initials, METODOS, money, norm, parseNum, qty, r2, r3 }
 import type { ProductoDTO } from "@/lib/stock";
 
 type Line = { id: string; nombre: string; precio: number; unidad: string; cant: number; categoria: string | null };
-type Desc = { type: "%" | "$"; value: number };
+type Desc = { type: "%" | "$"; value: number; pin?: string; autorizo?: string };
+type Auth = { descuento: boolean; retiro: boolean; devolucion: boolean };
 type Metodo = keyof typeof METODOS;
 
 const CART_KEY = "ordz_cart";
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 
-export function Pos({ productos, caja, cajero, ivaPct, sinStock }: {
-  productos: ProductoDTO[]; caja: string; cajero: string; ivaPct: number; sinStock: boolean;
+export function Pos({ productos, clientes, caja, cajero, ivaPct, sinStock, auth }: {
+  productos: ProductoDTO[]; clientes: ClienteDTO[]; caja: string; cajero: string; ivaPct: number; sinStock: boolean; auth: Auth;
 }) {
   const router = useRouter();
   const [cart, setCart] = useState<Line[]>([]);
@@ -25,7 +31,7 @@ export function Pos({ productos, caja, cajero, ivaPct, sinStock }: {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("Todas");
   const [open, setOpen] = useState(false); // ticket en celular
-  const [modal, setModal] = useState<null | "pay" | "disc" | "clear" | "corte" | "cam">(null);
+  const [modal, setModal] = useState<null | "pay" | "disc" | "clear" | "corte" | "cam" | "caja" | "ENTRADA" | "RETIRO" | "dev">(null);
   const [done, setDone] = useState<VentaHecha | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const qRef = useRef<HTMLInputElement>(null);
@@ -38,7 +44,7 @@ export function Pos({ productos, caja, cajero, ivaPct, sinStock }: {
     } catch {}
   }, []);
   useEffect(() => {
-    try { localStorage.setItem(CART_KEY, JSON.stringify({ cart, desc })); } catch {}
+    try { localStorage.setItem(CART_KEY, JSON.stringify({ cart, desc: { type: desc.type, value: desc.pin ? 0 : desc.value } })); } catch {}
   }, [cart, desc]);
 
   const byId = useMemo(() => new Map(productos.map((p) => [p.id, p])), [productos]);
@@ -179,7 +185,7 @@ export function Pos({ productos, caja, cajero, ivaPct, sinStock }: {
           <div className="rc-head">
             <div><b>Venta actual</b><small>{caja} · {firstName(cajero)}</small></div>
             <div className="row" style={{ gap: 6 }}>
-              <button className="btn sm ghost" onClick={() => setModal("corte")}><Icon name="cash" />Corte</button>
+              <button className="btn sm ghost" onClick={() => setModal("caja")}><Icon name="cash" />Caja</button>
               {cart.length > 0 && <button className="btn-icon sm" onClick={() => setModal("clear")} title="Vaciar ticket" aria-label="Vaciar ticket"><Icon name="trash" /></button>}
               <button className="btn-icon sm rc-x" onClick={() => setOpen(false)} aria-label="Cerrar ticket"><Icon name="x" /></button>
             </div>
@@ -210,7 +216,7 @@ export function Pos({ productos, caja, cajero, ivaPct, sinStock }: {
           </div>
           <div className="tot">
             <div><span>Subtotal · {qty(totals.n)} art.</span><span>{money(totals.sub)}</span></div>
-            {totals.desc > 0 && <div className="disc"><span>Descuento{desc.type === "%" ? ` ${desc.value}%` : ""}</span><span>−{money(totals.desc)}</span></div>}
+            {totals.desc > 0 && <div className="disc"><span>Descuento{desc.type === "%" ? ` ${desc.value}%` : ""}{desc.autorizo ? ` · autorizó ${firstName(desc.autorizo)}` : ""}</span><span>−{money(totals.desc)}</span></div>}
             <div className="dim"><span>IVA incluido</span><span>{money(totals.iva)}</span></div>
             <div className="big"><span>Total</span><span>{money(totals.total)}</span></div>
             <div className="rc-acts">
@@ -228,9 +234,12 @@ export function Pos({ productos, caja, cajero, ivaPct, sinStock }: {
       </button>
 
       <CameraScanner open={modal === "cam"} onClose={() => setModal(null)} onCode={(c) => { setModal(null); scan(c); }} />
-      {modal === "pay" && <PayModal totals={totals} cart={cart} desc={desc} onClose={() => setModal(null)} onDone={finish} />}
-      {modal === "disc" && <DiscModal desc={desc} onClose={() => setModal(null)} onApply={(d) => { setDesc(d); setModal(null); }} />}
+      {modal === "pay" && <PayModal totals={totals} cart={cart} desc={desc} clientes={clientes} onClose={() => setModal(null)} onDone={finish} />}
+      {modal === "disc" && <DiscModal desc={desc} needPin={auth.descuento} onClose={() => setModal(null)} onApply={(d) => { setDesc(d); setModal(null); }} />}
       {modal === "corte" && <CorteModal onClose={() => setModal(null)} />}
+      {modal === "caja" && <CajaMenu onClose={() => setModal(null)} onPick={(m) => setModal(m)} />}
+      {(modal === "ENTRADA" || modal === "RETIRO") && <MovCajaModal tipo={modal} needPin={modal === "RETIRO" && auth.retiro} onClose={() => setModal(null)} />}
+      {modal === "dev" && <DevolucionModal needPin={auth.devolucion} onClose={() => setModal(null)} onDone={() => router.refresh()} />}
       <Modal open={modal === "clear"} onClose={() => setModal(null)} size="sm" label="Vaciar ticket">
         <ModalHead title="¿Vaciar el ticket?" onClose={() => setModal(null)} />
         <p className="muted">Se quitarán todos los productos del ticket actual.</p>
@@ -255,20 +264,41 @@ function QtyInput({ value, onCommit }: { value: number; onCommit: (v: number) =>
   );
 }
 
-function PayModal({ totals, cart, desc, onClose, onDone }: {
-  totals: { total: number; n: number }; cart: Line[]; desc: Desc; onClose: () => void; onDone: (v: VentaHecha) => void;
+type Modo = "EFECTIVO" | "TARJETA" | "TRANSFERENCIA" | "CREDITO" | "MIXTO";
+const MODOS: [Modo, "cash" | "card" | "swap" | "users" | "grid", string][] = [
+  ["EFECTIVO", "cash", "Efectivo"], ["TARJETA", "card", "Tarjeta"], ["TRANSFERENCIA", "swap", "Transfer."], ["CREDITO", "users", "Crédito"], ["MIXTO", "grid", "Mixto"],
+];
+
+function PayModal({ totals, cart, desc, clientes, onClose, onDone }: {
+  totals: { total: number; n: number }; cart: Line[]; desc: Desc; clientes: ClienteDTO[]; onClose: () => void; onDone: (v: VentaHecha) => void;
 }) {
-  const [metodo, setMetodo] = useState<Metodo>("EFECTIVO");
+  const [modo, setModo] = useState<Modo>("EFECTIVO");
   const [rec, setRec] = useState("");
-  const [cliente, setCliente] = useState("");
+  const [mix, setMix] = useState({ TARJETA: "", TRANSFERENCIA: "", CREDITO: "" });
+  const [cli, setCli] = useState<ClienteDTO | null>(null);
+  const [nombreLibre, setNombreLibre] = useState("");
   const [pending, start] = useTransition();
   const clientId = useRef(uid());
   const t = totals.total;
-  const val = rec === "" ? t : parseNum(rec);
-  const ch = r2(val - t);
-  const short = metodo === "EFECTIVO" && ch < 0;
-  const bills = [...new Set([Math.ceil(t / 10) * 10, Math.ceil(t / 50) * 50, 100, 200, 500, 1000])].filter((b) => b > t).slice(0, 3);
+  const disponible = cli ? r2(Math.max(0, cli.limite - cli.saldo)) : 0;
 
+  const noEf = modo === "MIXTO"
+    ? r2(parseNum(mix.TARJETA) + parseNum(mix.TRANSFERENCIA) + (cli ? parseNum(mix.CREDITO) : 0))
+    : modo === "EFECTIVO" ? 0 : t;
+  const credito = modo === "CREDITO" ? t : modo === "MIXTO" && cli ? parseNum(mix.CREDITO) : 0;
+  const efNecesario = r2(Math.max(0, t - noEf));
+  const usaEfectivo = modo === "EFECTIVO" || (modo === "MIXTO" && efNecesario > 0);
+  const recibido = rec === "" ? efNecesario : parseNum(rec);
+  const cambio = r2(recibido - efNecesario);
+
+  let error = "";
+  if (noEf > t + 0.001) error = "Los pagos pasan del total.";
+  else if (credito > 0 && !cli) error = "Elige un cliente para vender a crédito.";
+  else if (credito > 0 && cli && cli.limite <= 0) error = `${cli.nombre} no tiene crédito autorizado.`;
+  else if (credito > disponible + 0.001 && cli) error = `Crédito disponible: ${money(disponible)}.`;
+  else if (usaEfectivo && cambio < 0) error = `Faltan ${money(-cambio)}.`;
+
+  const bills = [...new Set([Math.ceil(efNecesario / 10) * 10, Math.ceil(efNecesario / 50) * 50, 100, 200, 500, 1000])].filter((b) => b > efNecesario).slice(0, 3);
   const key = (k: string) => setRec((r) => {
     if (k === "del") return r.slice(0, -1);
     if (k === ".") return r.includes(".") ? r : (r || "0") + ".";
@@ -278,12 +308,20 @@ function PayModal({ totals, cart, desc, onClose, onDone }: {
   });
 
   const confirm = () => {
-    if (short || pending) return;
+    if (error || pending) return;
+    const pagos: { metodo: "EFECTIVO" | "TARJETA" | "TRANSFERENCIA" | "CREDITO"; monto: number }[] = [];
+    if (modo === "MIXTO") {
+      (["TARJETA", "TRANSFERENCIA", "CREDITO"] as const).forEach((m) => { const v = parseNum(mix[m]); if (v > 0 && (m !== "CREDITO" || cli)) pagos.push({ metodo: m, monto: r2(v) }); });
+      if (efNecesario > 0) pagos.push({ metodo: "EFECTIVO", monto: r2(recibido) });
+    } else if (modo === "EFECTIVO") pagos.push({ metodo: "EFECTIVO", monto: r2(recibido) });
+    else pagos.push({ metodo: modo, monto: t });
+    if (!pagos.length) pagos.push({ metodo: "EFECTIVO", monto: 0 });
     start(async () => {
       const res = await cobrar({
         clientId: clientId.current,
         items: cart.map((l) => ({ id: l.id, cant: l.cant })),
-        desc, metodo, recibido: metodo === "EFECTIVO" ? r2(val) : t, cliente,
+        desc: { type: desc.type, value: desc.value }, autPin: desc.pin,
+        pagos, clienteId: cli?.id, cliente: cli ? undefined : nombreLibre,
       });
       if (!res.ok) return toast(res.error, "bad");
       onDone(res.data!);
@@ -292,7 +330,9 @@ function PayModal({ totals, cart, desc, onClose, onDone }: {
 
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.id === "payCli") { if (e.key === "Enter") { e.preventDefault(); confirm(); } return; }
+      const tg = e.target as HTMLElement;
+      if (tg?.tagName === "INPUT") { if (e.key === "Enter" && tg.id !== "cliQ") { e.preventDefault(); confirm(); } return; }
+      if (!usaEfectivo) { if (e.key === "Enter") { e.preventDefault(); confirm(); } return; }
       if (/^[0-9.]$/.test(e.key)) { e.preventDefault(); key(e.key); }
       else if (e.key === "Backspace") { e.preventDefault(); key("del"); }
       else if (e.key === "Enter") { e.preventDefault(); confirm(); }
@@ -307,19 +347,40 @@ function PayModal({ totals, cart, desc, onClose, onDone }: {
         <div><p className="eyebrow">Cobrar {qty(totals.n)} artículos</p><div className="pay-total mono">{money(t)}</div></div>
         <button className="btn-icon" onClick={onClose} aria-label="Cerrar"><Icon name="x" /></button>
       </div>
-      <div className="pay-m">
-        {([["EFECTIVO", "cash"], ["TARJETA", "card"], ["TRANSFERENCIA", "swap"]] as const).map(([m, i]) => (
-          <button key={m} className={m === metodo ? "on" : ""} onClick={() => setMetodo(m)}><Icon name={i} /><span>{METODOS[m]}</span></button>
+      <div className="pay-m five">
+        {MODOS.map(([m, i, l]) => (
+          <button key={m} className={m === modo ? "on" : ""} onClick={() => { setModo(m); setRec(""); }}><Icon name={i} /><span>{l}</span></button>
         ))}
       </div>
-      {metodo === "EFECTIVO" && (
+
+      <ClientePicker clientes={clientes} value={cli} onChange={setCli} requerido={credito > 0} libre={nombreLibre} onLibre={setNombreLibre} />
+
+      {(modo === "TARJETA" || modo === "TRANSFERENCIA") && (
+        <div className="change"><span>{modo === "TARJETA" ? "Cobra en la terminal" : "Confirma la transferencia por"}</span><b className="mono">{money(t)}</b></div>
+      )}
+      {modo === "CREDITO" && cli && (
+        <div className="change"><span>Se carga a la cuenta · disponible {money(disponible)}</span><b className="mono">{money(t)}</b></div>
+      )}
+      {modo === "MIXTO" && (
+        <div className="mix">
+          {(["TARJETA", "TRANSFERENCIA", ...(cli && cli.limite > 0 ? ["CREDITO"] : [])] as ("TARJETA" | "TRANSFERENCIA" | "CREDITO")[]).map((m) => (
+            <label key={m} className="mix-r">
+              <span>{METODOS[m]}</span>
+              <input className="mono" inputMode="decimal" placeholder="0.00" value={mix[m]} onChange={(e) => setMix((x) => ({ ...x, [m]: e.target.value }))} />
+              <button type="button" className="btn sm" onClick={() => setMix((x) => ({ ...x, [m]: String(r2(Math.max(0, t - (noEf - parseNum(x[m]))))) }))}>Resto</button>
+            </label>
+          ))}
+          <div className="mix-r tot-line"><span>Resta en efectivo</span><b className="mono">{money(efNecesario)}</b></div>
+        </div>
+      )}
+      {usaEfectivo && (
         <div className="cash">
           <div className="cash-in">
-            <span className="eyebrow">Recibido</span><b className="mono">{rec === "" ? money(t) : "$" + rec}</b>
-            <span className="eyebrow">Cambio</span><b className={`mono chg ${ch < 0 ? "neg" : ""}`}>{ch < 0 ? "Faltan " + money(-ch) : money(ch)}</b>
+            <span className="eyebrow">Recibido</span><b className="mono">{rec === "" ? money(efNecesario) : "$" + rec}</b>
+            <span className="eyebrow">Cambio</span><b className={`mono chg ${cambio < 0 ? "neg" : ""}`}>{cambio < 0 ? "Faltan " + money(-cambio) : money(cambio)}</b>
           </div>
           <div className="quick">
-            <button onClick={() => setRec(String(t))}>Exacto</button>
+            <button onClick={() => setRec(String(efNecesario))}>Exacto</button>
             {bills.map((b) => <button key={b} onClick={() => setRec(String(b))}>{money(b).replace(".00", "")}</button>)}
           </div>
           <div className="keypad">
@@ -329,15 +390,74 @@ function PayModal({ totals, cart, desc, onClose, onDone }: {
           </div>
         </div>
       )}
-      <label className="fld"><span>Cliente (opcional)</span><input id="payCli" value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="Público en general" /></label>
-      <button className="btn primary xl" disabled={short || pending} onClick={confirm}><Icon name="check" />{pending ? "Registrando…" : "Confirmar cobro"}</button>
+      {error && <p className="err">{error}</p>}
+      <button className="btn primary xl" disabled={!!error || pending} onClick={confirm}><Icon name="check" />{pending ? "Registrando…" : "Confirmar cobro"}</button>
     </Modal>
   );
 }
 
-function DiscModal({ desc, onClose, onApply }: { desc: Desc; onClose: () => void; onApply: (d: Desc) => void }) {
+function ClientePicker({ clientes, value, onChange, requerido, libre, onLibre }: {
+  clientes: ClienteDTO[]; value: ClienteDTO | null; onChange: (c: ClienteDTO | null) => void; requerido: boolean; libre: string; onLibre: (s: string) => void;
+}) {
+  const [q, setQ] = useState(libre);
+  const [show, setShow] = useState(false);
+  const [extra, setExtra] = useState<ClienteDTO[]>([]);
+  const [pending, start] = useTransition();
+  const all = useMemo(() => [...extra, ...clientes], [extra, clientes]);
+  const res = useMemo(() => {
+    const v = norm(q.trim());
+    return v ? all.filter((c) => norm(`${c.nombre} ${c.telefono ?? ""}`).includes(v)).slice(0, 6) : all.filter((c) => c.limite > 0).slice(0, 6);
+  }, [q, all]);
+  if (value)
+    return (
+      <div className="cli-sel">
+        <span className="av">{initials(value.nombre)}</span>
+        <div className="t"><b>{value.nombre}</b><small>{value.limite > 0 ? `Debe ${money(value.saldo)} · disponible ${money(Math.max(0, value.limite - value.saldo))}` : "Sin crédito"}</small></div>
+        <button className="btn-icon sm" onClick={() => onChange(null)} aria-label="Quitar cliente"><Icon name="x" /></button>
+      </div>
+    );
+  return (
+    <div className="picker">
+      <label className="fld"><span>Cliente {requerido ? "(obligatorio para crédito)" : "(opcional)"}</span>
+        <input id="cliQ" value={q} autoComplete="off" placeholder="Público en general · busca por nombre o teléfono"
+          onFocus={() => setShow(true)} onBlur={() => setTimeout(() => setShow(false), 180)}
+          onChange={(e) => { setQ(e.target.value); onLibre(e.target.value); setShow(true); }} />
+      </label>
+      {show && (res.length > 0 || q.trim().length > 1) && (
+        <div className="sugg">
+          {res.map((c) => (
+            <button type="button" key={c.id} onMouseDown={(e) => e.preventDefault()} onClick={() => { onChange(c); onLibre(""); setShow(false); }}>
+              <span>{c.nombre}</span><small className="mono">{c.limite > 0 ? `debe ${money(c.saldo)}` : c.telefono ?? ""}</small>
+            </button>
+          ))}
+          {q.trim().length > 1 && !res.some((c) => norm(c.nombre) === norm(q.trim())) && (
+            <button type="button" disabled={pending} onMouseDown={(e) => e.preventDefault()} onClick={() => start(async () => {
+              const r = await crearClienteRapido(q);
+              if (!r.ok) return toast(r.error, "bad");
+              setExtra((x) => [r.data!, ...x]); onChange(r.data!); onLibre(""); setShow(false);
+            })}><span><Icon name="plus" /> Agregar “{q.trim()}” como cliente</span><small>sin crédito</small></button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DiscModal({ desc, needPin, onClose, onApply }: { desc: Desc; needPin: boolean; onClose: () => void; onApply: (d: Desc) => void }) {
   const [type, setType] = useState(desc.type);
   const [v, setV] = useState(desc.value ? String(desc.value) : "");
+  const [pin, setPin] = useState("");
+  const [pending, start] = useTransition();
+  const apply = () => {
+    const x = Math.max(0, parseNum(v));
+    const d: Desc = { type, value: type === "%" ? Math.min(100, x) : x };
+    if (!needPin || d.value === 0) return onApply(d);
+    start(async () => {
+      const r = await verificarSupervisor(pin);
+      if (!r.ok) return toast(r.error, "bad");
+      onApply({ ...d, pin, autorizo: r.data });
+    });
+  };
   return (
     <Modal open onClose={onClose} size="sm" label="Descuento">
       <ModalHead title="Descuento al ticket" onClose={onClose} />
@@ -346,9 +466,10 @@ function DiscModal({ desc, onClose, onApply }: { desc: Desc; onClose: () => void
         <button className={type === "$" ? "on" : ""} onClick={() => setType("$")}>Monto fijo</button>
       </div>
       <label className="fld"><span>Valor</span><input className="mono" inputMode="decimal" value={v} onChange={(e) => setV(e.target.value)} autoFocus /></label>
+      {needPin && <PinSupervisor value={pin} onChange={setPin} />}
       <div className="mfoot">
         <button className="btn" onClick={() => onApply({ type: "%", value: 0 })}>Quitar descuento</button>
-        <button className="btn primary" onClick={() => { const x = Math.max(0, parseNum(v)); onApply({ type, value: type === "%" ? Math.min(100, x) : x }); }}>Aplicar</button>
+        <button className="btn primary" disabled={pending || (needPin && parseNum(v) > 0 && pin.length < 4)} onClick={apply}>{needPin ? "Autorizar y aplicar" : "Aplicar"}</button>
       </div>
     </Modal>
   );
@@ -360,20 +481,67 @@ function DoneModal({ v, onClose }: { v: VentaHecha; onClose: () => void }) {
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
   }, [onClose]);
+  const ef = v.pagos.some((p) => p.metodo === "EFECTIVO");
   return (
     <Modal open onClose={onClose} size="sm done" label="Venta registrada">
       <div className="done-head">
         <span className="done-ic"><Icon name="check" /></span>
         <h2>Venta registrada</h2>
-        <p className="muted mono" style={{ fontSize: ".84rem" }}>{v.folio} · {METODOS[v.metodo as Metodo]} · {money(v.total)}</p>
+        <p className="muted mono" style={{ fontSize: ".84rem" }}>{v.folio} · {v.pagos.map((p) => METODOS[p.metodo as Metodo]).join(" + ")} · {money(v.total)}</p>
       </div>
-      {v.metodo === "EFECTIVO" && (
-        <div className="done-change"><span>Cambio a entregar</span><b className="mono">{money(v.cambio)}</b></div>
-      )}
+      {ef && <div className="done-change"><span>Cambio a entregar</span><b className="mono">{money(v.cambio)}</b></div>}
       <div className="done-acts">
         <button className="btn" onClick={() => window.open(`/imprimir/ticket/${v.id}?auto=1`, "_blank", "width=420,height=640")}><Icon name="printer" />Imprimir ticket</button>
         <button className="btn primary" onClick={onClose} autoFocus>Nueva venta</button>
       </div>
+    </Modal>
+  );
+}
+
+function CajaMenu({ onClose, onPick }: { onClose: () => void; onPick: (m: "ENTRADA" | "RETIRO" | "dev" | "corte") => void }) {
+  const ops = [
+    ["ENTRADA", "plus", "Entrada de efectivo", "Cambio, fondo extra"],
+    ["RETIRO", "minus", "Retiro de efectivo", "Gastos, pago a proveedor, caja fuerte"],
+    ["dev", "undo", "Devolución", "De uno o varios artículos de un ticket"],
+    ["corte", "cash", "Corte de caja", "Cuadrar y cerrar el turno"],
+  ] as const;
+  return (
+    <Modal open onClose={onClose} size="sm" label="Caja">
+      <ModalHead title="Caja" onClose={onClose} />
+      <div className="list">
+        {ops.map(([k, i, l, d]) => (
+          <button key={k} className="li op" onClick={() => onPick(k)}>
+            <span className="ck-ic"><Icon name={i} /></span>
+            <div className="t"><b>{l}</b><small>{d}</small></div>
+          </button>
+        ))}
+      </div>
+    </Modal>
+  );
+}
+
+function MovCajaModal({ tipo, needPin, onClose }: { tipo: "ENTRADA" | "RETIRO"; needPin: boolean; onClose: () => void }) {
+  const router = useRouter();
+  const [monto, setMonto] = useState("");
+  const [concepto, setConcepto] = useState("");
+  const [pin, setPin] = useState("");
+  const [pending, start] = useTransition();
+  return (
+    <Modal open onClose={onClose} size="sm" label={tipo === "ENTRADA" ? "Entrada de efectivo" : "Retiro de efectivo"}>
+      <form style={{ display: "flex", flexDirection: "column", gap: 14 }} onSubmit={(e) => {
+        e.preventDefault();
+        start(async () => {
+          const r = await movimientoCaja({ tipo, monto: parseNum(monto), concepto, autPin: needPin ? pin : undefined });
+          if (!r.ok) return toast(r.error, "bad");
+          toast(r.msg!); onClose(); router.refresh();
+        });
+      }}>
+        <ModalHead title={tipo === "ENTRADA" ? "Entrada de efectivo" : "Retiro de efectivo"} onClose={onClose} />
+        <label className="fld"><span>Monto</span><input className="mono" inputMode="decimal" value={monto} onChange={(e) => setMonto(e.target.value)} autoFocus style={{ height: 52, fontSize: "1.3rem" }} /></label>
+        <label className="fld"><span>Concepto</span><input value={concepto} onChange={(e) => setConcepto(e.target.value)} placeholder={tipo === "ENTRADA" ? "Cambio para la caja" : "Pago de garrafones, retiro a caja fuerte…"} /></label>
+        {needPin && <PinSupervisor value={pin} onChange={setPin} />}
+        <div className="mfoot"><button type="button" className="btn" onClick={onClose}>Cancelar</button><button className="btn primary" disabled={pending || !parseNum(monto) || concepto.trim().length < 2}>Registrar</button></div>
+      </form>
     </Modal>
   );
 }
@@ -414,8 +582,13 @@ function CorteModal({ onClose }: { onClose: () => void }) {
           <p className="muted">Abierta por {r.abiertoPor} · {new Date(r.abiertoEn).toLocaleString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
           <div className="tot" style={{ borderRadius: 14 }}>
             <div><span>Tickets</span><span>{r.tickets}{r.cancelados ? ` (+${r.cancelados} cancelados)` : ""}</span></div>
-            {(Object.keys(METODOS) as Metodo[]).map((m) => <div key={m}><span>{METODOS[m]}</span><span>{money(r.porMetodo[m])}</span></div>)}
+            {(Object.keys(METODOS) as Metodo[]).map((m) => <div key={m} className={m === "EFECTIVO" ? "" : "dim"}><span>Ventas {METODOS[m].toLowerCase()}</span><span>{money(r.porMetodo[m])}</span></div>)}
+            <div className="dim"><span>Total vendido</span><span>{money(r.total)}</span></div>
             <div><span>Fondo inicial</span><span>{money(r.fondo)}</span></div>
+            {r.abonosEfectivo > 0 && <div><span>+ Abonos de clientes</span><span>{money(r.abonosEfectivo)}</span></div>}
+            {r.entradas > 0 && <div><span>+ Entradas</span><span>{money(r.entradas)}</span></div>}
+            {r.retiros > 0 && <div><span>− Retiros</span><span>{money(r.retiros)}</span></div>}
+            {r.devolucionesEfectivo > 0 && <div><span>− Devoluciones</span><span>{money(r.devolucionesEfectivo)}</span></div>}
             <div className="big"><span>Efectivo esperado</span><span>{money(r.esperado)}</span></div>
           </div>
           <label className="fld"><span>Efectivo contado</span>
@@ -426,7 +599,7 @@ function CorteModal({ onClose }: { onClose: () => void }) {
               {dif == null ? "—" : (dif > 0 ? "+" : "") + money(dif)}
             </b>
           </div>
-          <label className="fld"><span>Notas</span><input value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Retiros, faltantes, observaciones" /></label>
+          <label className="fld"><span>Notas</span><input value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Faltantes u observaciones" /></label>
           <div className="mfoot">
             <button className="btn" onClick={onClose}>Cancelar</button>
             <button className="btn primary" disabled={contado === "" || pending}

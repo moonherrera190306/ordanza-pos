@@ -13,7 +13,7 @@ async function main() {
     return;
   }
   const t = await prisma.tenant.create({
-    data: { slug, nombre: "Papelería La Esquina", direccion: "Zamora, Michoacán", telefono: "351 000 0000" },
+    data: { slug, nombre: "Papelería La Esquina", direccion: "Zamora, Michoacán", telefono: "351 000 0000", plan: "Operación", maxCajas: 2, pagadoHasta: new Date(Date.now() + 30 * 864e5) },
   });
   const [admin] = await Promise.all([
     prisma.usuario.create({
@@ -57,6 +57,19 @@ async function main() {
         data: { tenantId: t.id, productoId: p.id, tipo: "INICIAL", cantidad: stock, costoUnit: costo, nota: "Inventario inicial", usuarioId: admin.id, usuarioNombre: admin.nombre },
       });
   }
+  await prisma.cliente.createMany({
+    data: [
+      { tenantId: t.id, nombre: "Escuela Primaria Morelos", telefono: "351 111 2233", limiteCredito: 5000, nota: "Paga los viernes" },
+      { tenantId: t.id, nombre: "María López", telefono: "351 444 5566", limiteCredito: 800 },
+      { tenantId: t.id, nombre: "Jorge Ramírez", telefono: "351 777 8899" },
+    ],
+  });
+  await prisma.proveedor.createMany({
+    data: [
+      { tenantId: t.id, nombre: "Distribuidora Escolar", contacto: "Rocío", telefono: "351 222 3344" },
+      { tenantId: t.id, nombre: "Bebidas del Bajío", contacto: "Ruta 12", telefono: "351 555 6677" },
+    ],
+  });
   console.log("Listo. Entra con admin@demo.mx / ordanza123 (PIN 1234). Cajero PIN 2222, almacén PIN 3333.");
 }
 

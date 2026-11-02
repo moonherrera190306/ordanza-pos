@@ -22,9 +22,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ tipo: st
   let nombre: string;
 
   if (tipo === "ventas") {
-    const vs = await prisma.venta.findMany({ where: { tenantId: s.tid, creado: rango }, orderBy: { creado: "asc" }, include: { caja: true } });
-    rows = [["Folio", "Fecha", "Caja", "Usuario", "Cliente", "Método", "Subtotal", "Descuento", "IVA", "Total", "Costo", "Utilidad", "Estado", "Motivo cancelación"],
-      ...vs.map((v) => [v.folio, fecha(v.creado), v.caja.nombre, v.usuarioNombre, v.cliente, METODOS[v.metodo], n(v.subtotal), n(v.descuento), n(v.iva), n(v.total), n(v.costo), n(v.total) - n(v.costo), v.estado === "PAGADA" ? "Pagada" : "Cancelada", v.motivoCancelacion])];
+    const vs = await prisma.venta.findMany({ where: { tenantId: s.tid, creado: rango }, orderBy: { creado: "asc" }, include: { caja: true, pagos: true, devoluciones: { select: { total: true } } } });
+    rows = [["Folio", "Fecha", "Caja", "Usuario", "Cliente", "Formas de pago", "Subtotal", "Descuento", "IVA", "Total", "Devuelto", "Costo", "Utilidad", "Estado", "Motivo cancelación", "Descuento autorizado por"],
+      ...vs.map((v) => [v.folio, fecha(v.creado), v.caja.nombre, v.usuarioNombre, v.cliente, v.pagos.map((p) => `${METODOS[p.metodo]} ${n(p.monto)}`).join(" + "), n(v.subtotal), n(v.descuento), n(v.iva), n(v.total), v.devoluciones.reduce((a, d) => a + n(d.total), 0), n(v.costo), n(v.total) - n(v.costo), v.estado === "PAGADA" ? "Pagada" : "Cancelada", v.motivoCancelacion, v.autorizadoPor])];
     nombre = `ventas-${per.desde}-a-${per.hasta}`;
   } else if (tipo === "productos") {
     const [ps, sm] = await Promise.all([prisma.producto.findMany({ where: { tenantId: s.tid }, include: { categoria: true }, orderBy: { nombre: "asc" } }), stockMap(s.tid)]);

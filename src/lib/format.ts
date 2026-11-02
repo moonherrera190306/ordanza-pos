@@ -28,7 +28,7 @@ export function hue(cat?: string | null) {
 }
 
 export const ROLES = { ADMIN: "Administrador", CAJERO: "Cajero", ALMACEN: "Almacén" } as const;
-export const METODOS = { EFECTIVO: "Efectivo", TARJETA: "Tarjeta", TRANSFERENCIA: "Transferencia" } as const;
+export const METODOS = { EFECTIVO: "Efectivo", TARJETA: "Tarjeta", TRANSFERENCIA: "Transferencia", CREDITO: "Crédito" } as const;
 export const MOV_TIPOS = {
   INICIAL: "Inicial",
   ENTRADA: "Entrada",
@@ -36,4 +36,6 @@ export const MOV_TIPOS = {
   AJUSTE: "Ajuste",
   VENTA: "Venta",
   CANCELACION: "Cancelación",
+  DEVOLUCION: "Devolución",
+  COMPRA: "Compra",
 } as const;

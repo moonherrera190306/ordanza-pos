@@ -7,12 +7,13 @@ import { initials, parseNum, ROLES } from "@/lib/format";
 import { Icon } from "@/components/Icon";
 import { Modal, ModalHead, toast } from "@/components/ui";
 
-type Negocio = { nombre: string; rfc: string; direccion: string; telefono: string; piePagina: string; anchoTicket: 58 | 80; ivaPct: number; permitirSinStock: boolean };
+type Negocio = { nombre: string; rfc: string; direccion: string; telefono: string; piePagina: string; anchoTicket: 58 | 80; ivaPct: number; permitirSinStock: boolean; autorizarDescuento: boolean; autorizarRetiro: boolean; autorizarDevolucion: boolean };
+type Licencia = { plan: string; maxCajas: number; pagadoHasta: string | null };
 type Caja = { id: string; nombre: string; clave: string; activa: boolean; abiertaPor: string | null };
 type Rol = "ADMIN" | "CAJERO" | "ALMACEN";
 type Usuario = { id: string; nombre: string; rol: Rol; email: string; activo: boolean; tienePassword: boolean };
 
-export function AjustesView({ meId, negocio, cajas, usuarios, equipoCajaId }: { meId: string; negocio: Negocio; cajas: Caja[]; usuarios: Usuario[]; equipoCajaId: string | null }) {
+export function AjustesView({ meId, negocio, cajas, usuarios, equipoCajaId, licencia, superAdmin }: { meId: string; negocio: Negocio; cajas: Caja[]; usuarios: Usuario[]; equipoCajaId: string | null; licencia: Licencia; superAdmin: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [f, setF] = useState(negocio);
@@ -48,6 +49,11 @@ export function AjustesView({ meId, negocio, cajas, usuarios, equipoCajaId }: { 
           <label className="fld"><span>IVA incluido en precios (%)</span><input className="mono" inputMode="decimal" value={f.ivaPct} onChange={(e) => set("ivaPct", parseNum(e.target.value))} /></label>
         </div>
         <label className="chk"><input type="checkbox" checked={f.permitirSinStock} onChange={(e) => set("permitirSinStock", e.target.checked)} /> Permitir vender productos sin existencia</label>
+        <div className="panel-h" style={{ marginTop: 8 }}><h3>Autorizaciones para cajeros</h3></div>
+        <p className="muted" style={{ fontSize: ".86rem", marginTop: -6 }}>Cuando está activo, un cajero necesita el PIN de un administrador. Queda registrado quién autorizó.</p>
+        <label className="chk"><input type="checkbox" checked={f.autorizarDescuento} onChange={(e) => set("autorizarDescuento", e.target.checked)} /> Descuentos</label>
+        <label className="chk"><input type="checkbox" checked={f.autorizarRetiro} onChange={(e) => set("autorizarRetiro", e.target.checked)} /> Retiros de efectivo</label>
+        <label className="chk"><input type="checkbox" checked={f.autorizarDevolucion} onChange={(e) => set("autorizarDevolucion", e.target.checked)} /> Devoluciones</label>
         <div className="mfoot"><button className="btn primary" disabled={pending}>Guardar</button></div>
       </form>
 
@@ -96,6 +102,25 @@ export function AjustesView({ meId, negocio, cajas, usuarios, equipoCajaId }: { 
                 <button className="btn-icon sm" onClick={() => setUser(u)} aria-label={`Editar ${u.nombre}`}><Icon name="edit" /></button>
               </div>
             ))}
+          </div>
+        </section>
+      </div>
+
+      <div className="grid2">
+        <section className="panel">
+          <div className="panel-h"><h3>Tu plan</h3><span className="pill acc nodot">{licencia.plan}</span></div>
+          <div className="list">
+            <div className="li"><div className="t"><b>Cajas activas</b><small>{cajas.filter((c) => c.activa).length} de {licencia.maxCajas} incluidas</small></div></div>
+            <div className="li"><div className="t"><b>Vigencia</b><small>{licencia.pagadoHasta ? `Pagado hasta el ${new Date(licencia.pagadoHasta).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}` : "Sin fecha registrada"}</small></div></div>
+          </div>
+        </section>
+        <section className="panel">
+          <div className="panel-h"><h3>Tus datos</h3></div>
+          <p className="muted" style={{ fontSize: ".88rem" }}>Descarga un respaldo completo de tu negocio: productos, ventas, clientes, compras y bitácora. Los datos son tuyos.</p>
+          <div className="row gap wrapf">
+            <a className="btn" href="/api/respaldo"><Icon name="download" />Respaldo completo (JSON)</a>
+            <a className="btn" href="/api/export/productos"><Icon name="download" />Productos (CSV)</a>
+            {superAdmin && <a className="btn primary" href="/ordanza"><Icon name="shield" />Panel Ordanza</a>}
           </div>
         </section>
       </div>

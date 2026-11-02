@@ -9,6 +9,10 @@ import { createSession, destroySession, getDevice, getSession } from "@/lib/auth
 export type FormState = { error?: string; ok?: string } | undefined;
 
 const MAX_FAILS = 5;
+const SUSPENDIDO = "La cuenta de este negocio está suspendida. Comunícate con Ordanza para reactivarla.";
+async function tenantActivo(tid: string) {
+  return !!(await prisma.tenant.findFirst({ where: { id: tid, activo: true }, select: { id: true } }));
+}
 const LOCK_MIN = 5;
 
 async function checkLock(u: { id: string; bloqueadoHasta: Date | null }) {
@@ -52,6 +56,7 @@ export async function loginEmail(_: FormState, fd: FormData): Promise<FormState>
     await fail(u);
     return { error: "Correo o contraseña incorrectos." };
   }
+  if (!(await tenantActivo(u.tenantId))) return { error: SUSPENDIDO };
   await ok(u, u.rol === "ALMACEN" ? null : await defaultCaja(u.tenantId));
   redirect(u.rol === "CAJERO" ? "/venta" : "/inicio");
 }
@@ -69,6 +74,7 @@ export async function loginPin(_: FormState, fd: FormData): Promise<FormState> {
     await fail(u);
     return { error: "PIN incorrecto." };
   }
+  if (!(await tenantActivo(u.tenantId))) return { error: SUSPENDIDO };
   const caja = await prisma.caja.findFirst({ where: { id: dev.cajaId, tenantId: dev.tid, activa: true } });
   await ok(u, u.rol === "ALMACEN" ? null : caja?.id ?? (await defaultCaja(u.tenantId)));
   redirect(u.rol === "CAJERO" ? "/venta" : "/inicio");

@@ -2,6 +2,8 @@ import { requirePage } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { productosDTO } from "@/lib/stock";
 import { n } from "@/lib/format";
+import { clientesDTO } from "@/lib/clientes";
+import { requiereAutorizacion } from "@/lib/supervisor";
 import { Pos } from "./Pos";
 import { AbrirTurno } from "./AbrirTurno";
 
@@ -20,10 +22,12 @@ export default async function VentaPage() {
     );
   const turno = await prisma.turno.findFirst({ where: { tenantId: s.tid, cajaId: s.caja.id, estado: "ABIERTO" } });
   if (!turno) return <AbrirTurno caja={s.caja.nombre} />;
-  const productos = await productosDTO(s.tid, { soloActivos: true });
+  const [productos, clientes] = await Promise.all([productosDTO(s.tid, { soloActivos: true }), clientesDTO(s.tid)]);
   return (
     <Pos
       productos={productos}
+      clientes={clientes}
+      auth={{ descuento: requiereAutorizacion(s, "descuento"), retiro: requiereAutorizacion(s, "retiro"), devolucion: requiereAutorizacion(s, "devolucion") }}
       caja={s.caja.nombre}
       cajero={s.user.nombre}
       ivaPct={n(s.tenant.ivaPct)}

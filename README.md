@@ -1,6 +1,6 @@
 # Ordanza POS
 
-Inventario con punto de venta multicaja: ventas con lector o cámara, cortes de caja, etiquetas con código de barras, agenda, bitácora y reportes. Multi-tenant: un solo despliegue atiende a varios negocios.
+Inventario con punto de venta multicaja: ventas con lector o cámara, pago mixto, crédito a clientes, devoluciones, entradas y retiros de caja, cortes, compras a proveedores, importación desde Excel, etiquetas con código de barras, agenda, bitácora y reportes. Multi-tenant: un solo despliegue atiende a varios negocios, con panel interno de licencias para Ordanza.
 
 **Stack:** Next.js 16 (App Router) · React 19 · TypeScript · Prisma 7 + Postgres (Neon) · CSS propio.
 
@@ -14,14 +14,14 @@ npm run db:seed               # negocio demo
 npm run dev
 ```
 
-Demo: `admin@demo.mx` / `ordanza123` (PIN 1234). Cajero PIN 2222, almacén PIN 3333.
+Demo: `admin@demo.mx` / `ordanza123` (PIN 1234). Cajero PIN 2222, almacén PIN 3333. Para ver `/ordanza` en local pon `SUPERADMIN_EMAILS="admin@demo.mx"` en tu `.env`.
 
 > La primera vez, sube a git la carpeta `prisma/migrations` que genera `migrate dev`. Producción la necesita.
 
 ## Despliegue (Vercel + Neon)
 
 1. Crea la base en Neon y copia la cadena **pooled**.
-2. En Vercel, variables: `DATABASE_URL`, `AUTH_SECRET` y, solo si quieres alta pública de negocios, `REGISTRO_ABIERTO=true`.
+2. En Vercel, variables: `DATABASE_URL`, `AUTH_SECRET`, `SUPERADMIN_EMAILS` (correos de Ordanza con acceso a `/ordanza`) y, solo si quieres alta pública de negocios, `REGISTRO_ABIERTO=true`.
 3. Build command: `prisma migrate deploy && npm run build`.
 
 ## Cómo está armado
@@ -33,6 +33,14 @@ Demo: `admin@demo.mx` / `ordanza123` (PIN 1234). Cajero PIN 2222, almacén PIN 3
 - **Roles:** Administrador (todo), Cajero (vender, consultar, agenda), Almacén (productos, inventario, etiquetas).
 - **Acceso:** el administrador entra con correo y contraseña. En **Ajustes → Este equipo** se vincula cada computadora a una caja; ahí los cajeros entran con su nombre y PIN. Hay bloqueo de 5 minutos tras 5 intentos fallidos.
 - **Impresión:** `/imprimir/ticket/[id]`, `/imprimir/corte/[id]` y `/imprimir/etiquetas` salen al tamaño del papel (ticket 58/80 mm; etiquetas 50×25, 40×30 o carta). Con Chrome en modo kiosco (`--kiosk-printing`) imprimen directo sin diálogo.
+- **Pagos.** Cada venta guarda sus formas de pago en `VentaPago` (efectivo ya sin el cambio). El corte suma: fondo + ventas en efectivo + abonos en efectivo + entradas − retiros − devoluciones en efectivo.
+- **Crédito.** `MovCliente` es la cuenta del cliente: CARGO por venta a crédito, ABONO por pago, devolución o cancelación. Saldo = cargos − abonos. Límite 0 = sin crédito; solo un administrador lo asigna.
+- **Devoluciones parciales.** Regresan existencia (`Movimiento` DEVOLUCION) y el dinero en efectivo, tarjeta, transferencia o abono a la cuenta. Respetan el descuento del ticket. Una venta con devoluciones ya no se cancela completa.
+- **PIN de supervisor.** Si el usuario es cajero, descuentos, retiros y devoluciones piden el PIN de un administrador (se configura en Ajustes). Queda en la bitácora quién autorizó.
+- **Compras.** Suman existencia (`Movimiento` COMPRA), actualizan el costo con promedio ponderado y, si se marca, salen de la caja como retiro.
+- **Importar Excel.** `/productos/importar` lee .xlsx o .csv en el navegador, detecta columnas, deja corregir el mapeo y muestra vista previa. Empata por código, SKU o nombre.
+- **Licencias.** `/ordanza` (solo `SUPERADMIN_EMAILS`): alta de negocios, plan, cajas incluidas, vigencia, suspensión y respaldo. El límite de cajas se valida al crear o activar una caja; un negocio suspendido no puede entrar; con la licencia vencida, el administrador ve un aviso.
+- **Respaldo.** `/api/respaldo` descarga todo el negocio en JSON (sin contraseñas ni PIN).
 - **CSV:** `/api/export/{ventas|productos|movimientos|bitacora}?desde=YYYY-MM-DD&hasta=YYYY-MM-DD`.
 
 ## Rutas
@@ -42,8 +50,10 @@ Demo: `admin@demo.mx` / `ordanza123` (PIN 1234). Cajero PIN 2222, almacén PIN 3
 | `/inicio` | Todos |
 | `/venta` | Admin, Cajero |
 | `/escanear`, `/productos`, `/agenda` | Todos |
-| `/inventario`, `/etiquetas` | Admin, Almacén |
+| `/clientes` | Admin, Cajero |
+| `/inventario`, `/compras`, `/etiquetas`, `/productos/importar` | Admin, Almacén |
 | `/reportes`, `/bitacora`, `/ajustes`, `/ventas/[id]` | Admin |
+| `/ordanza` | Personal de Ordanza |
 
 ## Siguientes fases
 
