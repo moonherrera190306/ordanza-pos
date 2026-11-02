@@ -1,0 +1,269 @@
+// Ordanza POS — esquema multi-tenant.
+// Regla: TODA consulta filtra por tenantId. La existencia de un producto
+// NO se guarda en un campo: es la suma de sus Movimientos (libro de inventario).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Rol {
+  ADMIN
+  CAJERO
+  ALMACEN
+}
+
+enum TurnoEstado {
+  ABIERTO
+  CERRADO
+}
+
+enum MovTipo {
+  INICIAL
+  ENTRADA
+  SALIDA
+  AJUSTE
+  VENTA
+  CANCELACION
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TARJETA
+  TRANSFERENCIA
+}
+
+enum VentaEstado {
+  PAGADA
+  CANCELADA
+}
+
+enum CitaEstado {
+  PENDIENTE
+  HECHA
+  CANCELADA
+}
+
+model Tenant {
+  id               String   @id @default(cuid())
+  slug             String   @unique
+  nombre           String
+  rfc              String?
+  direccion        String?
+  telefono         String?
+  piePagina        String   @default("¡Gracias por su compra!")
+  anchoTicket      Int      @default(58)
+  ivaPct           Decimal  @default(16) @db.Decimal(5, 2)
+  permitirSinStock Boolean  @default(false)
+  zonaHoraria      String   @default("America/Mexico_City")
+  activo           Boolean  @default(true)
+  creado           DateTime @default(now())
+
+  usuarios    Usuario[]
+  cajas       Caja[]
+  turnos      Turno[]
+  categorias  Categoria[]
+  productos   Producto[]
+  movimientos Movimiento[]
+  ventas      Venta[]
+  citas       Cita[]
+  bitacora    Bitacora[]
+}
+
+model Usuario {
+  id               String    @id @default(cuid())
+  tenantId         String
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  nombre           String
+  email            String?   @unique
+  passwordHash     String?
+  pinHash          String
+  rol              Rol       @default(CAJERO)
+  activo           Boolean   @default(true)
+  intentosFallidos Int       @default(0)
+  bloqueadoHasta   DateTime?
+  creado           DateTime  @default(now())
+
+  @@index([tenantId])
+}
+
+model Caja {
+  id          String  @id @default(cuid())
+  tenantId    String
+  tenant      Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  nombre      String
+  clave       String
+  activa      Boolean @default(true)
+  consecutivo Int     @default(0)
+
+  turnos Turno[]
+  ventas Venta[]
+
+  @@unique([tenantId, clave])
+}
+
+model Turno {
+  id           String      @id @default(cuid())
+  tenantId     String
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cajaId       String
+  caja         Caja        @relation(fields: [cajaId], references: [id])
+  estado       TurnoEstado @default(ABIERTO)
+  abiertoPorId String
+  abiertoPor   String
+  abiertoEn    DateTime    @default(now())
+  fondo        Decimal     @db.Decimal(12, 2)
+  cerradoPorId String?
+  cerradoPor   String?
+  cerradoEn    DateTime?
+  esperado     Decimal?    @db.Decimal(12, 2)
+  contado      Decimal?    @db.Decimal(12, 2)
+  diferencia   Decimal?    @db.Decimal(12, 2)
+  nota         String?
+
+  ventas Venta[]
+
+  @@index([tenantId, cajaId, estado])
+}
+
+model Categoria {
+  id        String     @id @default(cuid())
+  tenantId  String
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  nombre    String
+  productos Producto[]
+
+  @@unique([tenantId, nombre])
+}
+
+model Producto {
+  id          String     @id @default(cuid())
+  tenantId    String
+  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  nombre      String
+  codigo      String?
+  sku         String?
+  categoriaId String?
+  categoria   Categoria? @relation(fields: [categoriaId], references: [id], onDelete: SetNull)
+  unidad      String     @default("pza")
+  esServicio  Boolean    @default(false)
+  precio      Decimal    @db.Decimal(12, 2)
+  costo       Decimal    @default(0) @db.Decimal(12, 2)
+  minimo      Decimal    @default(0) @db.Decimal(12, 3)
+  proveedor   String?
+  ubicacion   String?
+  fotoUrl     String?
+  activo      Boolean    @default(true)
+  creado      DateTime   @default(now())
+  actualizado DateTime   @updatedAt
+
+  movimientos Movimiento[]
+  items       VentaItem[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, nombre])
+}
+
+model Movimiento {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  productoId    String
+  producto      Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  tipo          MovTipo
+  // Con signo: + entra, − sale. Existencia = SUM(cantidad).
+  cantidad      Decimal  @db.Decimal(12, 3)
+  costoUnit     Decimal? @db.Decimal(12, 2)
+  nota          String?
+  usuarioId     String
+  usuarioNombre String
+  ventaId       String?
+  creado        DateTime @default(now())
+
+  @@index([tenantId, productoId])
+  @@index([tenantId, creado])
+}
+
+model Venta {
+  id               String      @id @default(cuid())
+  tenantId         String
+  tenant           Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  folio            String
+  // Llave de idempotencia generada por el cliente (para reintentos y modo offline)
+  clientId         String      @unique
+  cajaId           String
+  caja             Caja        @relation(fields: [cajaId], references: [id])
+  turnoId          String
+  turno            Turno       @relation(fields: [turnoId], references: [id])
+  usuarioId        String
+  usuarioNombre    String
+  cliente          String?
+  subtotal         Decimal     @db.Decimal(12, 2)
+  descuento        Decimal     @default(0) @db.Decimal(12, 2)
+  iva              Decimal     @db.Decimal(12, 2)
+  total            Decimal     @db.Decimal(12, 2)
+  costo            Decimal     @db.Decimal(12, 2)
+  metodo           MetodoPago
+  recibido         Decimal     @db.Decimal(12, 2)
+  cambio           Decimal     @db.Decimal(12, 2)
+  estado           VentaEstado @default(PAGADA)
+  canceladaPor     String?
+  canceladaEn      DateTime?
+  motivoCancelacion String?
+  creado           DateTime    @default(now())
+
+  items VentaItem[]
+
+  @@unique([tenantId, folio])
+  @@index([tenantId, creado])
+  @@index([turnoId])
+}
+
+model VentaItem {
+  id         String   @id @default(cuid())
+  ventaId    String
+  venta      Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+  productoId String
+  producto   Producto @relation(fields: [productoId], references: [id])
+  nombre     String
+  unidad     String
+  precio     Decimal  @db.Decimal(12, 2)
+  costo      Decimal  @db.Decimal(12, 2)
+  cantidad   Decimal  @db.Decimal(12, 3)
+  importe    Decimal  @db.Decimal(12, 2)
+}
+
+model Cita {
+  id        String     @id @default(cuid())
+  tenantId  String
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  titulo    String
+  fecha     String // YYYY-MM-DD en la zona del negocio
+  hora      String? // HH:mm
+  cliente   String?
+  telefono  String?
+  nota      String?
+  estado    CitaEstado @default(PENDIENTE)
+  creadoPor String
+  creado    DateTime   @default(now())
+
+  @@index([tenantId, fecha])
+}
+
+model Bitacora {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  usuarioId     String?
+  usuarioNombre String
+  modulo        String
+  accion        String
+  detalle       String?
+  creado        DateTime @default(now())
+
+  @@index([tenantId, creado])
+}
