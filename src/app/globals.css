@@ -329,7 +329,8 @@ tr:hover .row-acts{opacity:1}
 .tile.out{opacity:.55}
 .receipt{display:flex;flex-direction:column;min-height:0}
 .receipt-body{background:var(--surface);border:1px solid var(--line);border-radius:20px;display:flex;flex-direction:column;min-height:0;flex:1;overflow:hidden;box-shadow:var(--sh-2)}
-.rc-head{padding:16px 16px 12px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid var(--line)}
+.rc-head{padding:14px 14px 12px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;border-bottom:1px solid var(--line)}
+.rc-head .btn.sm{padding:0 10px}
 .rc-head b{font-family:var(--f-display);font-size:1.1rem;display:block}
 .rc-head small{display:block;color:var(--muted);font-size:.78rem}
 .rc-x{display:none!important}

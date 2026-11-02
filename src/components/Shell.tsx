@@ -147,6 +147,7 @@ function Palette({ rol, onClose }: { rol: RolKey; onClose: () => void }) {
 
   const acts: Item[] = [
     ...(rol !== "ALMACEN" ? [{ g: "Acciones", l: "Nueva venta", icon: "cart" as IconName, k: "F2", go: () => nav("/venta") }] : []),
+    ...(rol !== "ALMACEN" ? [{ g: "Acciones", l: "Devolución de un ticket", icon: "undo" as IconName, go: () => nav("/venta?devolucion=1") }] : []),
     ...(rol !== "CAJERO" ? [{ g: "Acciones", l: "Nuevo producto", icon: "plus" as IconName, go: () => nav("/productos?nuevo=1") }] : []),
     { g: "Acciones", l: "Escanear con la cámara", icon: "camera", go: () => nav("/escanear?camara=1") },
     { g: "Acciones", l: "Nueva cita", icon: "cal", go: () => nav("/agenda?nueva=1") },

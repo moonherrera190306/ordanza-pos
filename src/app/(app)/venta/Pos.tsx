@@ -22,8 +22,8 @@ type Metodo = keyof typeof METODOS;
 const CART_KEY = "ordz_cart";
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 
-export function Pos({ productos, clientes, caja, cajero, ivaPct, sinStock, auth }: {
-  productos: ProductoDTO[]; clientes: ClienteDTO[]; caja: string; cajero: string; ivaPct: number; sinStock: boolean; auth: Auth;
+export function Pos({ productos, clientes, caja, cajero, ivaPct, sinStock, auth, abrirDevolucion = false }: {
+  productos: ProductoDTO[]; clientes: ClienteDTO[]; caja: string; cajero: string; ivaPct: number; sinStock: boolean; auth: Auth; abrirDevolucion?: boolean;
 }) {
   const router = useRouter();
   const [cart, setCart] = useState<Line[]>([]);
@@ -31,7 +31,7 @@ export function Pos({ productos, clientes, caja, cajero, ivaPct, sinStock, auth 
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("Todas");
   const [open, setOpen] = useState(false); // ticket en celular
-  const [modal, setModal] = useState<null | "pay" | "disc" | "clear" | "corte" | "cam" | "caja" | "ENTRADA" | "RETIRO" | "dev">(null);
+  const [modal, setModal] = useState<null | "pay" | "disc" | "clear" | "corte" | "cam" | "caja" | "ENTRADA" | "RETIRO" | "dev">(abrirDevolucion ? "dev" : null);
   const [done, setDone] = useState<VentaHecha | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const qRef = useRef<HTMLInputElement>(null);
@@ -185,6 +185,7 @@ export function Pos({ productos, clientes, caja, cajero, ivaPct, sinStock, auth 
           <div className="rc-head">
             <div><b>Venta actual</b><small>{caja} · {firstName(cajero)}</small></div>
             <div className="row" style={{ gap: 6 }}>
+              <button className="btn sm ghost" onClick={() => setModal("dev")} title="Devolución de un ticket"><Icon name="undo" />Devolución</button>
               <button className="btn sm ghost" onClick={() => setModal("caja")}><Icon name="cash" />Caja</button>
               {cart.length > 0 && <button className="btn-icon sm" onClick={() => setModal("clear")} title="Vaciar ticket" aria-label="Vaciar ticket"><Icon name="trash" /></button>}
               <button className="btn-icon sm rc-x" onClick={() => setOpen(false)} aria-label="Cerrar ticket"><Icon name="x" /></button>
@@ -239,7 +240,7 @@ export function Pos({ productos, clientes, caja, cajero, ivaPct, sinStock, auth 
       {modal === "corte" && <CorteModal onClose={() => setModal(null)} />}
       {modal === "caja" && <CajaMenu onClose={() => setModal(null)} onPick={(m) => setModal(m)} />}
       {(modal === "ENTRADA" || modal === "RETIRO") && <MovCajaModal tipo={modal} needPin={modal === "RETIRO" && auth.retiro} onClose={() => setModal(null)} />}
-      {modal === "dev" && <DevolucionModal needPin={auth.devolucion} onClose={() => setModal(null)} onDone={() => router.refresh()} />}
+      {modal === "dev" && <DevolucionModal needPin={auth.devolucion} onClose={() => { setModal(null); if (abrirDevolucion) router.replace("/venta"); }} onDone={() => router.refresh()} />}
       <Modal open={modal === "clear"} onClose={() => setModal(null)} size="sm" label="Vaciar ticket">
         <ModalHead title="¿Vaciar el ticket?" onClose={() => setModal(null)} />
         <p className="muted">Se quitarán todos los productos del ticket actual.</p>

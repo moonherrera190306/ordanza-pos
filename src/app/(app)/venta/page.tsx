@@ -9,7 +9,7 @@ import { AbrirTurno } from "./AbrirTurno";
 
 export const metadata = { title: "Vender" };
 
-export default async function VentaPage() {
+export default async function VentaPage({ searchParams }: { searchParams: Promise<{ devolucion?: string }> }) {
   const s = await requirePage(["ADMIN", "CAJERO"]);
   if (!s.caja)
     return (
@@ -27,6 +27,7 @@ export default async function VentaPage() {
     <Pos
       productos={productos}
       clientes={clientes}
+      abrirDevolucion={(await searchParams).devolucion === "1"}
       auth={{ descuento: requiereAutorizacion(s, "descuento"), retiro: requiereAutorizacion(s, "retiro"), devolucion: requiereAutorizacion(s, "devolucion") }}
       caja={s.caja.nombre}
       cajero={s.user.nombre}
