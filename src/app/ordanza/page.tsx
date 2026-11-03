@@ -3,6 +3,7 @@ import { requireSuperAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { n } from "@/lib/format";
 import { OrdanzaView } from "./OrdanzaView";
+import { Logo } from "@/components/Logo";
 
 export const metadata = { title: "Panel Ordanza" };
 
@@ -21,7 +22,7 @@ export default async function Ordanza() {
   return (
     <div className="ord">
       <header className="ord-top">
-        <div className="row gap"><b style={{ fontFamily: "var(--f-display)", fontSize: "1.1rem" }}>Ordanza</b><span className="pill acc nodot">Panel interno</span></div>
+        <div className="row gap"><Logo variant="marca" size={30} /><b style={{ fontFamily: "var(--f-display)", fontSize: "1.1rem" }}>Ordanza</b><span className="pill acc nodot">Panel interno</span></div>
         <Link className="btn sm" href="/inicio">Volver a mi negocio</Link>
       </header>
       <OrdanzaView

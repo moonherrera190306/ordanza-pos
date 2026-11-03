@@ -7,7 +7,8 @@ import { logout } from "@/app/actions/auth";
 import { buscarGlobal, type Hit } from "@/app/actions/buscar";
 import { GROUPS, NAV, type RolKey } from "@/lib/nav";
 import { firstName, hue, initials, money, norm, qty, ROLES } from "@/lib/format";
-import { Icon, Mark, type IconName } from "./Icon";
+import { Icon, type IconName } from "./Icon";
+import { Logo } from "./Logo";
 import { Modal, Toaster } from "./ui";
 
 type Props = {
@@ -49,7 +50,7 @@ export function Shell({ user, negocio, caja, lowCount, aviso, children }: Props)
     <div id="shell">
       <aside className="rail">
         <div className="brand">
-          <Mark />
+          <Logo variant="marca" size={34} />
           <div><b>Ordanza</b><small>{negocio}</small></div>
         </div>
         <nav className="nav">
@@ -78,7 +79,7 @@ export function Shell({ user, negocio, caja, lowCount, aviso, children }: Props)
       <main>
         {aviso && <div className="lic-banner"><Icon name="alert" />{aviso}</div>}
         <header className="top">
-          <div className="m-brand"><Mark /><b style={{ fontFamily: "var(--f-display)", color: "var(--ink)" }}>{negocio}</b></div>
+          <div className="m-brand"><Logo variant="placa" size={28} /><b style={{ fontFamily: "var(--f-display)", color: "var(--ink)" }}>{negocio}</b></div>
           <button className="cmdk" type="button" onClick={() => setPalette(true)} aria-label="Buscar">
             <Icon name="search" /><span>Buscar producto, folio o acción</span><span className="kbd">Ctrl K</span>
           </button>

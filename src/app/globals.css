@@ -148,7 +148,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);
 #shell{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100%}
 .rail{position:sticky;top:0;height:100vh;height:100dvh;background:var(--rail);color:var(--rail-ink);display:flex;flex-direction:column;padding-block:18px 12px;padding-right:12px;padding-left:max(12px,env(safe-area-inset-left,0px));gap:2px;overflow-y:auto;scrollbar-width:none}
 .brand{display:flex;align-items:center;gap:11px;padding:4px 10px 20px;color:var(--rail-hi)}
-.brand .mark{height:24px}
+.brand .logo{flex:none;filter:drop-shadow(0 2px 8px rgb(110 150 255/.35))}
 .brand b{font-family:var(--f-display);font-weight:800;font-size:1.12rem;display:block;line-height:1.1}
 .brand small{color:var(--rail-ink);font-size:.74rem;display:block;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nav{display:flex;flex-direction:column;gap:2px}
@@ -207,7 +207,7 @@ main{min-width:0;display:flex;flex-direction:column}
   .cmdk span{display:none}
   .chip{padding:0 11px;max-width:150px;overflow:hidden}
   .chip .cs{display:none}
-  .top .m-brand .mark{display:none}
+  .top .m-brand .logo{flex:none;border-radius:8px}
   .top .m-brand b{font-size:1rem}
   .chart text{font-size:15px}
   main{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}
@@ -605,3 +605,9 @@ a{color:inherit}
 .ord-top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;align-items:center;justify-content:space-between;gap:10px;height:60px;background:var(--rail);color:var(--rail-hi);padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
 .ord-top .btn{background:rgb(255 255 255/.08);border-color:rgb(255 255 255/.16);color:var(--rail-hi);box-shadow:none}
 .lic-banner{display:flex;align-items:center;gap:10px;background:var(--warn-soft);color:var(--warn);padding:9px 20px;font-size:.86rem;font-weight:600}
+
+/* logo Ordanza */
+.logo{display:block;object-fit:contain;-webkit-user-select:none;user-select:none}
+.login-logo{display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+.login-logo .logo{max-width:100%;height:auto!important}
+@media (max-width:860px){.login-logo .logo{width:220px!important}}

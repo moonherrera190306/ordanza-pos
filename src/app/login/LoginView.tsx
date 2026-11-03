@@ -3,7 +3,8 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { loginEmail, loginPin } from "@/app/actions/auth";
-import { Icon, Mark } from "@/components/Icon";
+import { Icon } from "@/components/Icon";
+import { Logo } from "@/components/Logo";
 import { initials, ROLES } from "@/lib/format";
 
 type Device = { negocio: string; caja: string; usuarios: { id: string; nombre: string; rol: string }[] } | null;
@@ -22,9 +23,9 @@ function Clock() {
 export function Brand({ negocio }: { negocio: string }) {
   return (
     <div className="login-brand">
-      <div className="row gap" style={{ color: "var(--rail-hi)" }}>
-        <Mark />
-        <span className="eyebrow" style={{ color: "var(--rail-ink)" }}>Ordanza · Inventario y punto de venta</span>
+      <div className="login-logo">
+        <Logo variant="lockup-blanco" size={52} />
+        <span className="eyebrow" style={{ color: "var(--rail-ink)" }}>Inventario y punto de venta</span>
       </div>
       <div>
         <h1>{negocio}</h1>
