@@ -11,6 +11,12 @@ import { METODOS, money, n, r2, r3 } from "@/lib/format";
 import { adminPorPin, autorizar } from "@/lib/supervisor";
 import { calcResumen, type ResumenTurno } from "@/lib/corte";
 import { saldoMap } from "@/lib/clientes";
+import { estadoLicencia } from "@/lib/licencia";
+
+function exigirLicencia(s: { tenant: { licenciaClave: string | null; creado: Date } }) {
+  if (estadoLicencia(s.tenant).modo === "vencida")
+    throw new UserError("Terminó la prueba de 15 días. Activa tu licencia en Ajustes para seguir vendiendo.");
+}
 
 async function turnoAbierto(tid: string, cajaId: string) {
   return prisma.turno.findFirst({ where: { tenantId: tid, cajaId, estado: "ABIERTO" } });
@@ -19,6 +25,7 @@ async function turnoAbierto(tid: string, cajaId: string) {
 export async function abrirTurno(fondo: number) {
   return run(async () => {
     const s = await requireAction(["ADMIN", "CAJERO"]);
+    exigirLicencia(s);
     if (!s.caja) throw new UserError("Tu sesión no tiene caja asignada.");
     const f = r2(Math.max(0, Number(fondo) || 0));
     const t = await prisma.$transaction(async (tx) => {
@@ -67,6 +74,7 @@ export type VentaHecha = { id: string; folio: string; total: number; cambio: num
 export async function cobrar(input: CobroInput) {
   return run<VentaHecha>(async () => {
     const s = await requireAction(["ADMIN", "CAJERO"]);
+    exigirLicencia(s);
     const d = Cobro.parse(input);
     if (!s.caja) throw new UserError("Tu sesión no tiene caja asignada.");
 

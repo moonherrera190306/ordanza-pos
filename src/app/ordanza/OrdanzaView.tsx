@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { actualizarLicencia, crearNegocio } from "@/app/actions/ordanza";
+import { generarLicencia } from "@/app/actions/licencia";
 import { money, norm } from "@/lib/format";
 import { Icon } from "@/components/Icon";
 import { Modal, ModalHead, Toaster, toast } from "@/components/ui";
@@ -27,6 +28,7 @@ export function OrdanzaView({ negocios, hoy }: { negocios: Neg[]; hoy: string })
   const [q, setQ] = useState("");
   const [nuevo, setNuevo] = useState(false);
   const [edit, setEdit] = useState<Neg | null>(null);
+  const [gen, setGen] = useState(false);
   const now = Date.parse(hoy);
   const list = useMemo(() => negocios.filter((x) => norm(`${x.nombre} ${x.slug} ${x.plan}`).includes(norm(q))), [negocios, q]);
   const activos = negocios.filter((x) => x.activo);
@@ -38,7 +40,7 @@ export function OrdanzaView({ negocios, hoy }: { negocios: Neg[]; hoy: string })
     <div className="wrap">
       <div className="phead">
         <div><p className="eyebrow">Licencias y clientes</p><h1>Negocios</h1></div>
-        <div className="acts"><button className="btn primary" onClick={() => setNuevo(true)}><Icon name="plus" />Nuevo negocio</button></div>
+        <div className="acts"><button className="btn" onClick={() => setGen(true)}><Icon name="key" />Licencia local</button><button className="btn primary" onClick={() => setNuevo(true)}><Icon name="plus" />Nuevo negocio</button></div>
       </div>
       <div className="kpis">
         <div className="kpi"><span className="lbl">Negocios activos</span><strong className="val">{activos.length}</strong><span className="sub">{negocios.length - activos.length} {negocios.length - activos.length === 1 ? "suspendido" : "suspendidos"}</span></div>
@@ -71,6 +73,7 @@ export function OrdanzaView({ negocios, hoy }: { negocios: Neg[]; hoy: string })
       </div>
       {nuevo && <NuevoNegocio onClose={() => setNuevo(false)} />}
       {edit && <Licencia neg={edit} onClose={() => setEdit(null)} />}
+      {gen && <GenerarLicencia onClose={() => setGen(false)} />}
       <Toaster />
     </div>
   );
@@ -144,6 +147,41 @@ function Licencia({ neg, onClose }: { neg: Neg; onClose: () => void }) {
         <label className="chk"><input type="checkbox" checked={f.activo} onChange={(e) => setF({ ...f, activo: e.target.checked })} /> Cuenta activa (si la desactivas, nadie del negocio puede entrar)</label>
         <div className="mfoot"><button type="button" className="btn" onClick={onClose}>Cancelar</button><button className="btn primary" disabled={pending}>Guardar</button></div>
       </form>
+    </Modal>
+  );
+}
+
+function GenerarLicencia({ onClose }: { onClose: () => void }) {
+  const [f, setF] = useState({ negocio: "", equipo: "", cajas: "1" });
+  const [clave, setClave] = useState("");
+  const [pending, start] = useTransition();
+  const copiar = async () => { try { await navigator.clipboard.writeText(clave); toast("Clave copiada"); } catch { toast("Selecciona la clave y cópiala", "warn"); } };
+  return (
+    <Modal open onClose={onClose} label="Licencia local">
+      <ModalHead title="Licencia de la versión local" eyebrow="Pago único · se amarra a la computadora del cliente" onClose={onClose} />
+      {!clave ? (
+        <form style={{ display: "flex", flexDirection: "column", gap: 14 }} onSubmit={(e) => {
+          e.preventDefault();
+          start(async () => {
+            const r = await generarLicencia({ negocio: f.negocio, equipo: f.equipo, cajas: Number(f.cajas) || 1 });
+            if (!r.ok) return toast(r.error, "bad");
+            setClave(r.data!);
+          });
+        }}>
+          <label className="fld"><span>Negocio</span><input value={f.negocio} onChange={(e) => setF({ ...f, negocio: e.target.value })} autoFocus /></label>
+          <div className="grid2">
+            <label className="fld"><span>Código de equipo (lo ve el cliente en Ajustes)</span><input className="mono" value={f.equipo} onChange={(e) => setF({ ...f, equipo: e.target.value.toUpperCase() })} placeholder="1A2B-3C4D-5E6F-7A8B" /></label>
+            <label className="fld"><span>Cajas pagadas</span><input className="mono" inputMode="numeric" value={f.cajas} onChange={(e) => setF({ ...f, cajas: e.target.value })} /></label>
+          </div>
+          <div className="mfoot"><button type="button" className="btn" onClick={onClose}>Cancelar</button><button className="btn primary" disabled={pending}>Generar clave</button></div>
+        </form>
+      ) : (
+        <>
+          <p className="muted">Mándasela al cliente. Se pega en Ajustes → Licencia → Activar.</p>
+          <textarea className="mono" readOnly rows={5} value={clave} onFocus={(e) => e.target.select()} style={{ fontSize: ".78rem" }} />
+          <div className="mfoot"><button className="btn" onClick={() => setClave("")}>Otra</button><button className="btn primary" onClick={copiar}><Icon name="copy" />Copiar clave</button></div>
+        </>
+      )}
     </Modal>
   );
 }

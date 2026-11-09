@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { activarLicencia } from "@/app/actions/licencia";
+import type { EstadoLicencia } from "@/lib/licencia";
 import { desvincularEquipo, guardarCaja, guardarNegocio, guardarUsuario, vincularEquipo } from "@/app/actions/ajustes";
 import { initials, parseNum, ROLES } from "@/lib/format";
 import { Icon } from "@/components/Icon";
@@ -9,11 +11,12 @@ import { Modal, ModalHead, toast } from "@/components/ui";
 
 type Negocio = { nombre: string; rfc: string; direccion: string; telefono: string; piePagina: string; anchoTicket: 58 | 80; ivaPct: number; permitirSinStock: boolean; autorizarDescuento: boolean; autorizarRetiro: boolean; autorizarDevolucion: boolean };
 type Licencia = { plan: string; maxCajas: number; pagadoHasta: string | null };
+type Local = { codigo: string; estado: EstadoLicencia; red: string[] } | null;
 type Caja = { id: string; nombre: string; clave: string; activa: boolean; abiertaPor: string | null };
 type Rol = "ADMIN" | "CAJERO" | "ALMACEN";
 type Usuario = { id: string; nombre: string; rol: Rol; email: string; activo: boolean; tienePassword: boolean };
 
-export function AjustesView({ meId, negocio, cajas, usuarios, equipoCajaId, licencia, superAdmin }: { meId: string; negocio: Negocio; cajas: Caja[]; usuarios: Usuario[]; equipoCajaId: string | null; licencia: Licencia; superAdmin: boolean }) {
+export function AjustesView({ meId, negocio, cajas, usuarios, equipoCajaId, licencia, superAdmin, local }: { meId: string; negocio: Negocio; cajas: Caja[]; usuarios: Usuario[]; equipoCajaId: string | null; licencia: Licencia; superAdmin: boolean; local: Local }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [f, setF] = useState(negocio);
@@ -74,6 +77,11 @@ export function AjustesView({ meId, negocio, cajas, usuarios, equipoCajaId, lice
           </select>
           <button className="btn" disabled={pending || !vinc} onClick={() => act(vincularEquipo(vinc))}><Icon name="link" />{equipo ? "Cambiar caja" : "Vincular este equipo"}</button>
         </div>
+        {local && (
+          <p className="muted" style={{ fontSize: ".86rem" }}>
+            Para otras cajas o tablets conectadas al mismo internet del negocio, abre en su navegador: {local.red.map((u, i) => <span key={u}>{i ? " o " : ""}<b className="mono" style={{ userSelect: "all" }}>{u}</b></span>)} y vincúlalas aquí mismo.
+          </p>
+        )}
       </section>
 
       <div className="grid2">
@@ -107,13 +115,13 @@ export function AjustesView({ meId, negocio, cajas, usuarios, equipoCajaId, lice
       </div>
 
       <div className="grid2">
-        <section className="panel">
+        {local ? <LicenciaLocal local={local} cajasActivas={cajas.filter((c) => c.activa).length} maxCajas={licencia.maxCajas} /> : <section className="panel">
           <div className="panel-h"><h3>Tu plan</h3><span className="pill acc nodot">{licencia.plan}</span></div>
           <div className="list">
             <div className="li"><div className="t"><b>Cajas activas</b><small>{cajas.filter((c) => c.activa).length} de {licencia.maxCajas} incluidas</small></div></div>
             <div className="li"><div className="t"><b>Vigencia</b><small>{licencia.pagadoHasta ? `Pagado hasta el ${new Date(licencia.pagadoHasta).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}` : "Sin fecha registrada"}</small></div></div>
           </div>
-        </section>
+        </section>}
         <section className="panel">
           <div className="panel-h"><h3>Tus datos</h3></div>
           <p className="muted" style={{ fontSize: ".88rem" }}>Descarga un respaldo completo de tu negocio: productos, ventas, clientes, compras y bitácora. Los datos son tuyos.</p>
@@ -190,5 +198,50 @@ function UsuarioForm({ user, onClose }: { user: Usuario | null; onClose: () => v
         <div className="mfoot"><button type="button" className="btn" onClick={onClose}>Cancelar</button><button className="btn primary" disabled={pending}>Guardar</button></div>
       </form>
     </Modal>
+  );
+}
+
+function LicenciaLocal({ local, cajasActivas, maxCajas }: { local: NonNullable<Local>; cajasActivas: number; maxCajas: number }) {
+  const router = useRouter();
+  const [clave, setClave] = useState("");
+  const [pending, start] = useTransition();
+  const e = local.estado;
+  const copiar = async () => {
+    try { await navigator.clipboard.writeText(local.codigo); toast("Código copiado"); } catch { toast("Selecciona el código y cópialo", "warn"); }
+  };
+  return (
+    <section className="panel">
+      <div className="panel-h">
+        <h3>Licencia</h3>
+        {e.modo === "activa" ? <span className="pill ok">Activa</span> : e.modo === "prueba" ? <span className="pill warn">Prueba · {e.dias} {e.dias === 1 ? "día" : "días"}</span> : <span className="pill bad">Sin licencia</span>}
+      </div>
+      {e.modo === "activa" ? (
+        <div className="list">
+          <div className="li"><div className="t"><b>{e.datos.n}</b><small>Licencia de pago único · folio {e.datos.id} · emitida {e.datos.f}</small></div></div>
+          <div className="li"><div className="t"><b>Cajas</b><small>{cajasActivas} de {e.datos.c} incluidas</small></div></div>
+        </div>
+      ) : (
+        <>
+          <p className="muted" style={{ fontSize: ".88rem" }}>
+            {e.modo === "prueba" ? `Tienes todo el sistema en prueba (hasta ${maxCajas} cajas). ` : "La prueba terminó y no se pueden registrar ventas. "}
+            Manda este código a Ordanza por WhatsApp y te enviamos tu clave de activación.
+          </p>
+          <div className="lic-cod">
+            <span className="mono" style={{ userSelect: "all" }}>{local.codigo}</span>
+            <button type="button" className="btn sm" onClick={copiar}><Icon name="copy" />Copiar</button>
+          </div>
+          <label className="fld"><span>Clave de activación</span>
+            <textarea className="mono" rows={3} value={clave} onChange={(x) => setClave(x.target.value)} placeholder="ORDZ1.…" style={{ fontSize: ".78rem" }} />
+          </label>
+          <div className="mfoot">
+            <button className="btn primary" disabled={pending || clave.trim().length < 20} onClick={() => start(async () => {
+              const r = await activarLicencia(clave);
+              if (!r.ok) return toast(r.error, "bad");
+              toast(r.msg!); setClave(""); router.refresh();
+            })}><Icon name="check" />Activar licencia</button>
+          </div>
+        </>
+      )}
+    </section>
   );
 }

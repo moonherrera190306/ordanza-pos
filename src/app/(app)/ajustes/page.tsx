@@ -2,6 +2,8 @@ import { esSuperAdmin, getDevice, requirePage } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { n } from "@/lib/format";
 import { AjustesView } from "./AjustesView";
+import { MODO_LOCAL } from "@/lib/modo";
+import { codigoEquipo, direccionesRed, estadoLicencia } from "@/lib/licencia";
 
 export const metadata = { title: "Ajustes" };
 
@@ -20,6 +22,7 @@ export default async function Ajustes() {
       negocio={{ nombre: t.nombre, rfc: t.rfc ?? "", direccion: t.direccion ?? "", telefono: t.telefono ?? "", piePagina: t.piePagina, anchoTicket: t.anchoTicket === 80 ? 80 : 58, ivaPct: n(t.ivaPct), permitirSinStock: t.permitirSinStock, autorizarDescuento: t.autorizarDescuento, autorizarRetiro: t.autorizarRetiro, autorizarDevolucion: t.autorizarDevolucion }}
       licencia={{ plan: t.plan, maxCajas: t.maxCajas, pagadoHasta: t.pagadoHasta?.toISOString() ?? null }}
       superAdmin={esSuperAdmin(s)}
+      local={MODO_LOCAL ? { codigo: codigoEquipo(), estado: estadoLicencia(t), red: direccionesRed() } : null}
       cajas={cajas.map((c) => ({ id: c.id, nombre: c.nombre, clave: c.clave, activa: c.activa, abiertaPor: abiertos.find((a) => a.cajaId === c.id)?.abiertoPor ?? null }))}
       usuarios={usuarios.map((u) => ({ id: u.id, nombre: u.nombre, rol: u.rol, email: u.email ?? "", activo: u.activo, tienePassword: !!u.passwordHash }))}
       equipoCajaId={dev?.tid === s.tid ? dev.cajaId : null}

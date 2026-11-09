@@ -43,6 +43,23 @@ Demo: `admin@demo.mx` / `ordanza123` (PIN 1234). Cajero PIN 2222, almacén PIN 3
 - **Respaldo.** `/api/respaldo` descarga todo el negocio en JSON (sin contraseñas ni PIN).
 - **CSV:** `/api/export/{ventas|productos|movimientos|bitacora}?desde=YYYY-MM-DD&hasta=YYYY-MM-DD`.
 
+## Versión local (pago único, Windows)
+
+Se instala en la compu del cliente con su propia base de datos Postgres; no necesita internet para vender. Las demás cajas y tablets entran por la red del negocio (`http://NOMBRE-PC:3000`).
+
+```bash
+instalador/construir.sh          # → dist/OrdanzaPOS-Setup-<versión>.exe (se arma desde Linux o Mac)
+instalador/construir.sh linux    # → dist/ordanza-linux/ para probar el lanzador sin Windows
+```
+
+- **Qué instala:** Node 22, Postgres 17 embebido y la app en `C:\Program Files\Ordanza POS`; los datos en `C:\ProgramData\OrdanzaPOS`. Crea accesos directos, arranque automático del servidor al iniciar sesión y la regla de firewall del puerto 3000.
+- **Lanzador** (`instalador/lanzador/ordanza.mjs`): crea la base la primera vez, aplica `instalador/migraciones/*.sql` en orden y levanta el servidor con `MODO=local`. Abre el sistema en ventana propia de Edge o Chrome con impresión directa (`--kiosk-printing`).
+- **Esquema:** la versión local no usa `prisma migrate`. Cada cambio a `schema.prisma` lleva también un archivo nuevo `instalador/migraciones/00N_….sql`.
+- **Respaldos:** uno diario en `Documentos\Ordanza Respaldos` y en `C:\ProgramData\OrdanzaPOS\respaldos` (se guardan 30). En el menú Inicio están "Respaldar ahora" y "Restaurar respaldo" (se arrastra el archivo encima).
+- **Licencia:** 15 días de prueba completos. Después, sin licencia, el sistema queda en modo consulta (no deja abrir caja ni cobrar). La licencia es una clave firmada (Ed25519) amarrada al código de equipo que el cliente ve en **Ajustes → Licencia**, y fija el número de cajas.
+  - Genérala en `/ordanza` → **Licencia local**, o con `node scripts/licencia.mjs "Negocio" XXXX-XXXX-XXXX-XXXX 2`.
+  - Ambas necesitan `LICENCIA_PRIVADA` en tu `.env`. **Nunca la subas a git.**
+
 ## Rutas
 
 | Ruta | Rol |

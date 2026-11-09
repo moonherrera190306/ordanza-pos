@@ -7,3 +7,7 @@ src/generated
 *.tsbuildinfo
 next-env.d.ts
 .vercel
+
+# instalador
+instalador/.cache
+dist

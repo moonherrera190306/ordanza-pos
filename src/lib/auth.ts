@@ -4,6 +4,7 @@ import { cache } from "react";
 import { SignJWT, jwtVerify } from "jose";
 import type { Rol } from "@/generated/prisma/enums";
 import { prisma } from "./db";
+import { MODO_LOCAL } from "./modo";
 
 const SESSION = "ordz_s";
 const DEVICE = "ordz_dev";
@@ -27,7 +28,8 @@ async function verify<T>(token?: string): Promise<T | null> {
 const cookieOpts = (maxAge: number) => ({
   httpOnly: true,
   sameSite: "lax" as const,
-  secure: process.env.NODE_ENV === "production",
+  // En modo local las demás cajas entran por http dentro del negocio.
+  secure: process.env.NODE_ENV === "production" && !MODO_LOCAL,
   path: "/",
   maxAge,
 });
@@ -89,6 +91,7 @@ export async function requireAction(roles?: Rol[]) {
 
 /** Personal de Ordanza: correos en SUPERADMIN_EMAILS (separados por coma). */
 export function esSuperAdmin(s: Session | null) {
+  if (MODO_LOCAL) return false;
   const list = (process.env.SUPERADMIN_EMAILS || "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
   return !!s?.user.email && list.includes(s.user.email.toLowerCase());
 }

@@ -611,3 +611,8 @@ a{color:inherit}
 .login-logo{display:flex;flex-direction:column;align-items:flex-start;gap:12px}
 .login-logo .logo{max-width:100%;height:auto!important}
 @media (max-width:860px){.login-logo .logo{width:220px!important}}
+
+/* licencia local */
+.lic-cod{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-radius:12px;background:var(--deep);color:var(--deep-ink)}
+.lic-cod .mono{font-size:1.15rem;letter-spacing:.06em}
+.lic-cod .btn{background:rgb(255 255 255/.1);border-color:rgb(255 255 255/.2);color:var(--deep-ink);box-shadow:none}

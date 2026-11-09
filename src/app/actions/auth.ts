@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { createSession, destroySession, getDevice, getSession } from "@/lib/auth";
+import { registroAbierto } from "@/lib/registro";
+import { MODO_LOCAL } from "@/lib/modo";
 
 export type FormState = { error?: string; ok?: string } | undefined;
 
@@ -99,7 +101,7 @@ const Registro = z.object({
 });
 
 export async function registrar(_: FormState, fd: FormData): Promise<FormState> {
-  if (process.env.REGISTRO_ABIERTO !== "true") return { error: "El registro está cerrado. Contacta a Ordanza." };
+  if (!(await registroAbierto())) return { error: "El registro está cerrado. Contacta a Ordanza." };
   const r = Registro.safeParse(Object.fromEntries(fd));
   if (!r.success) return { error: r.error.issues[0].message };
   const d = r.data;
@@ -109,7 +111,7 @@ export async function registrar(_: FormState, fd: FormData): Promise<FormState> 
   for (let i = 2; await prisma.tenant.findUnique({ where: { slug } }); i++) slug = `${base}-${i}`;
   const [ph, pinh] = await Promise.all([bcrypt.hash(d.password, 10), bcrypt.hash(d.pin, 10)]);
   const { u, c } = await prisma.$transaction(async (tx) => {
-    const t = await tx.tenant.create({ data: { slug, nombre: d.negocio } });
+    const t = await tx.tenant.create({ data: { slug, nombre: d.negocio, ...(MODO_LOCAL ? { plan: "Local", maxCajas: 3 } : {}) } });
     const c = await tx.caja.create({ data: { tenantId: t.id, nombre: "Caja 1", clave: "C1" } });
     const u = await tx.usuario.create({
       data: { tenantId: t.id, nombre: d.nombre, email: d.email, passwordHash: ph, pinHash: pinh, rol: "ADMIN" },

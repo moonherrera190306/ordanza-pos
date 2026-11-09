@@ -86,6 +86,8 @@ model Tenant {
   maxCajas     Int       @default(2)
   pagadoHasta  DateTime?
   notasOrdanza String?
+  // Modo local: clave de licencia firmada por Ordanza
+  licenciaClave String?
 
   usuarios    Usuario[]
   cajas       Caja[]

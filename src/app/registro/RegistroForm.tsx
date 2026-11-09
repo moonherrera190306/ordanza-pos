@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { registrar } from "@/app/actions/auth";
 import { Brand } from "@/app/login/LoginView";
 
-export function RegistroForm() {
+export function RegistroForm({ local = false }: { local?: boolean }) {
   const [state, action, pending] = useActionState(registrar, undefined);
   return (
     <div className="login">
@@ -13,7 +13,7 @@ export function RegistroForm() {
         <div>
           <p className="eyebrow">Primera vez</p>
           <h2 style={{ fontSize: "1.6rem", marginTop: 4 }}>Crea tu negocio</h2>
-          <p className="muted" style={{ marginTop: 6 }}>Serás el administrador: das de alta cajas, usuarios y productos.</p>
+          <p className="muted" style={{ marginTop: 6 }}>Serás el administrador: das de alta cajas, usuarios y productos.{local ? " Tienes 15 días de prueba con todo incluido; después se activa con tu licencia." : ""}</p>
         </div>
         <label className="fld"><span>Nombre del negocio</span><input name="negocio" required autoFocus placeholder="Ferretería López" /></label>
         <label className="fld"><span>Tu nombre</span><input name="nombre" required /></label>
