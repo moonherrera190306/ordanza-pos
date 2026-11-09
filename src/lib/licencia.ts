@@ -70,7 +70,7 @@ export function estadoLicencia(t: { licenciaClave: string | null; creado: Date }
 
 /** Direcciones para entrar desde otras cajas o tablets de la misma red. */
 export function direccionesRed() {
-  const port = process.env.PORT || "3000";
+  const port = process.env.PORT || "3070";
   const ips = Object.values(os.networkInterfaces()).flat().filter((i) => i && i.family === "IPv4" && !i.internal).map((i) => i!.address);
   return [`http://${os.hostname()}:${port}`, ...ips.map((ip) => `http://${ip}:${port}`)];
 }

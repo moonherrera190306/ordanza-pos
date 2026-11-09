@@ -43,18 +43,24 @@ function config() {
   const f = path.join(DATOS, "config.json");
   let c = {};
   try { c = JSON.parse(fs.readFileSync(f, "utf8")); } catch {}
-  const def = { puerto: 3000, pgPuerto: 54329, pgPassword: crypto.randomBytes(18).toString("base64url"), authSecret: crypto.randomBytes(32).toString("base64") };
+  const def = { puertoApp: 3070, pgPuerto: 54329, pgPassword: crypto.randomBytes(18).toString("base64url"), authSecret: crypto.randomBytes(32).toString("base64") };
   const out = { ...def, ...c };
   if (JSON.stringify(out) !== JSON.stringify(c)) fs.writeFileSync(f, JSON.stringify(out, null, 2));
   return out;
 }
 const CFG = config();
-const URL_LOCAL = `http://127.0.0.1:${CFG.puerto}`;
+// 3070 y no 3000: el 3000 suele estar ocupado por otros proyectos de Next.js.
+const URL_LOCAL = `http://127.0.0.1:${CFG.puertoApp}`;
 const dbUrl = (db = "ordanza") => `postgresql://ordanza:${encodeURIComponent(CFG.pgPassword)}@127.0.0.1:${CFG.pgPuerto}/${db}`;
 
+/** true solo si el que responde en el puerto es Ordanza POS (no otra app). */
 function arriba(timeout = 1500) {
   return new Promise((res) => {
-    const r = http.get(URL_LOCAL + "/login", { timeout }, (x) => { x.resume(); res(x.statusCode < 500); });
+    const r = http.get(URL_LOCAL + "/api/salud", { timeout }, (x) => {
+      let b = "";
+      x.on("data", (d) => (b += d));
+      x.on("end", () => res(b.includes("ordanza-pos")));
+    });
     r.on("error", () => res(false));
     r.on("timeout", () => { r.destroy(); res(false); });
   });
@@ -170,7 +176,7 @@ async function restaurar(archivo) {
 
 // ---------- Ventana ----------
 function abrirVentana() {
-  const url = `http://localhost:${CFG.puerto}`;
+  const url = `http://localhost:${CFG.puertoApp}`;
   const pf = [process.env["ProgramFiles(x86)"], process.env.ProgramFiles, process.env.LOCALAPPDATA].filter(Boolean);
   const candidatos = WIN
     ? pf.flatMap((p) => [path.join(p, "Microsoft", "Edge", "Application", "msedge.exe"), path.join(p, "Google", "Chrome", "Application", "chrome.exe")])
@@ -188,10 +194,10 @@ async function servidor() {
   iniciarPostgres();
   await prepararBase();
   Object.assign(process.env, {
-    NODE_ENV: "production", MODO: "local", PORT: String(CFG.puerto), HOSTNAME: "0.0.0.0",
+    NODE_ENV: "production", MODO: "local", PORT: String(CFG.puertoApp), HOSTNAME: "0.0.0.0",
     DATABASE_URL: dbUrl(), AUTH_SECRET: CFG.authSecret, NEXT_TELEMETRY_DISABLED: "1",
   });
-  log(`Iniciando Ordanza POS en ${URL_LOCAL} (red local: http://${os.hostname()}:${CFG.puerto})`);
+  log(`Iniciando Ordanza POS en ${URL_LOCAL} (red local: http://${os.hostname()}:${CFG.puertoApp})`);
   process.chdir(APP);
   await import(pathToFileURL(path.join(APP, "server.js")).href);
   const revisar = async () => {

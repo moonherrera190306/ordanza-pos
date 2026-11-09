@@ -78,7 +78,7 @@ Section "Ordanza POS" SecMain
   ; Las demás cajas y tablets entran por la red del negocio.
   nsExec::Exec 'netsh advfirewall firewall delete rule name="Ordanza POS"'
   Pop $0
-  nsExec::Exec 'netsh advfirewall firewall add rule name="Ordanza POS" dir=in action=allow protocol=TCP localport=3000 profile=private,domain'
+  nsExec::Exec 'netsh advfirewall firewall add rule name="Ordanza POS" dir=in action=allow protocol=TCP localport=3070 profile=private,domain'
   Pop $0
 
   ; Accesos directos
